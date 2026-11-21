@@ -1,17 +1,17 @@
-/* RSTトレーニング
+/* ヨミトレ（リーディングスキルテスト形式の読解トレーニング）
    問題データ : data/manifest.json に列挙された JSON を読み込む
    学習記録   : このブラウザの localStorage に学習者ごとに保存（1問ごとに日時・正誤・解答時間） */
 (function () {
   "use strict";
 
   const RS = [
-    { code: "DEP", no: "RS1", name: "係り受け解析", short: "係り受け", desc: "文の骨組み（主語・述語・修飾）をとらえる" },
-    { code: "ANA", no: "RS2", name: "照応解決", short: "照応", desc: "指示語や省略された言葉が指すものをとらえる" },
-    { code: "PARA", no: "RS3", name: "同義文判定", short: "同義文", desc: "2つの文が同じ意味かを見分ける" },
-    { code: "INF", no: "RS4", name: "推論", short: "推論", desc: "書かれていることから確実にいえることを導く" },
-    { code: "REP", no: "RS5", name: "イメージ同定", short: "イメージ", desc: "文章と図・表・グラフを対応づける" },
-    { code: "INST_DIC", no: "RS6", name: "具体例同定（辞書）", short: "具体例(辞書)", desc: "言葉の定義に合う例を選ぶ" },
-    { code: "INST_SCI", no: "RS7", name: "具体例同定（理数）", short: "具体例(理数)", desc: "法則や定義にあてはまる例を選ぶ" },
+    { code: "DEP", no: "RS1", name: "係り受け解析", nick: "骨組み読み", stamp: "骨", short: "係り受け", desc: "文の骨組み（主語・述語・修飾）をとらえる" },
+    { code: "ANA", no: "RS2", name: "照応解決", nick: "指示語さがし", stamp: "指", short: "照応", desc: "指示語や省略された言葉が指すものをとらえる" },
+    { code: "PARA", no: "RS3", name: "同義文判定", nick: "言いかえ判定", stamp: "言", short: "同義文", desc: "2つの文が同じ意味かを見分ける" },
+    { code: "INF", no: "RS4", name: "推論", nick: "推理", stamp: "推", short: "推論", desc: "書かれていることから確実にいえることを導く" },
+    { code: "REP", no: "RS5", name: "イメージ同定", nick: "図とマッチ", stamp: "図", short: "イメージ", desc: "文章と図・表・グラフを対応づける" },
+    { code: "INST_DIC", no: "RS6", name: "具体例同定（辞書）", nick: "ことばの例さがし", stamp: "例", short: "具体例(辞書)", desc: "言葉の定義に合う例を選ぶ" },
+    { code: "INST_SCI", no: "RS7", name: "具体例同定（理数）", nick: "法則の例さがし", stamp: "法", short: "具体例(理数)", desc: "法則や定義にあてはまる例を選ぶ" },
   ];
   const RS_MAP = Object.fromEntries(RS.map((r) => [r.code, r]));
   const SUBJECTS = ["国語", "数学", "社会", "理科", "英語"];
@@ -94,6 +94,75 @@
     } catch (e) { return false; }
   }
 
+
+  /* =========================================================
+     XP・レベル・バッジ（学習記録から計算。保存形式は変えない）
+     ========================================================= */
+  const XP_OK = 10, XP_NG = 3, XP_LONG = 20;
+  const xpOf = (answers, sessions) => answers.reduce((s, a) => s + (a.ok ? XP_OK : XP_NG), 0) + sessions.filter((x) => x.mode === "L").length * XP_LONG;
+  const totalXP = () => xpOf(log().answers, log().sessions);
+  const levelStart = (L) => 50 * L * (L - 1);           // Lv.L になるのに必要な累計XP
+  const levelOf = (xp) => Math.max(1, Math.floor((1 + Math.sqrt(1 + 0.08 * xp)) / 2));
+  function levelInfo(xp) {
+    const L = levelOf(xp), a = levelStart(L), b = levelStart(L + 1);
+    return { L, cur: xp - a, need: b - a, pct: Math.round(((xp - a) / (b - a)) * 100) };
+  }
+  function longestStreak() {
+    const days = [...new Set(log().answers.map((a) => ymd(new Date(a.t))))].sort();
+    let best = 0, run = 0, prev = null;
+    days.forEach((d) => { const t = +parseYmd(d); run = prev !== null && Math.round((t - prev) / DAY) === 1 ? run + 1 : 1; best = Math.max(best, run); prev = t; });
+    return best;
+  }
+  const BADGES = [
+    { id: "first", stamp: "初", name: "はじめの一歩", how: "1問解く", test: (c) => c.n >= 1 },
+    { id: "n100", stamp: "百", name: "100問チャレンジ", how: "合計100問解く", test: (c) => c.n >= 100 },
+    { id: "n1000", stamp: "千", name: "1000問マスター", how: "合計1000問解く", test: (c) => c.n >= 1000 },
+    { id: "s3", stamp: "連", name: "3日れんぞく", how: "3日続けて解く", test: (c) => c.streak >= 3 },
+    { id: "s7", stamp: "週", name: "1週間れんぞく", how: "7日続けて解く", test: (c) => c.streak >= 7 },
+    { id: "perfect", stamp: "満", name: "パーフェクト", how: "5問以上を全問正解", test: (c) => c.perfect },
+    { id: "long1", stamp: "長", name: "長文デビュー", how: "長文読解を1回やりとげる", test: (c) => c.longN >= 1 },
+    { id: "long10", stamp: "読", name: "長文10本", how: "ちがう長文を10本読む", test: (c) => c.longKinds >= 10 },
+    ...RS.map((r) => ({ id: "rs_" + r.code, stamp: r.stamp, name: `${r.nick}の達人`, how: `${r.nick}を20問以上解き、正答率80%以上`, test: (c) => c.rs[r.code] && c.rs[r.code].t >= 20 && c.rs[r.code].c / c.rs[r.code].t >= 0.8 })),
+  ];
+  function badgeContext() {
+    const A = log().answers, S = log().sessions, rs = {};
+    A.forEach((a) => { (rs[a.rs] = rs[a.rs] || { c: 0, t: 0 }); rs[a.rs].t++; rs[a.rs].c += a.ok; });
+    const L = S.filter((s) => s.mode === "L");
+    return { n: A.length, streak: longestStreak(), perfect: S.some((s) => s.n >= 5 && s.ok === s.n), longN: L.length, longKinds: new Set(L.map((s) => s.p)).size, rs };
+  }
+  const earnedBadges = () => { const c = badgeContext(); return new Set(BADGES.filter((b) => b.test(c)).map((b) => b.id)); };
+  function badgesHTML(earned, fresh, opt) {
+    opt = opt || {};
+    let list = opt.only ? BADGES.filter((b) => opt.only.has(b.id)) : BADGES.slice();
+    if (opt.limit) list = list.filter((b) => earned.has(b.id)).concat(list.filter((b) => !earned.has(b.id))).slice(0, opt.limit);
+    return `<div class="stamps ${opt.only ? "only-on" : ""}">${list.map((b) => {
+      const on = earned.has(b.id), isNew = fresh && fresh.has(b.id);
+      return `<div class="stamp ${on ? "on" : ""} ${isNew ? "new" : ""}" title="${esc(b.name)}：${esc(b.how)}">
+        <span class="stamp-face" aria-hidden="true">${esc(b.stamp)}</span>
+        <span class="stamp-name">${on ? esc(b.name) : "？？？"}</span>
+        <span class="stamp-how">${esc(b.how)}</span></div>`;
+    }).join("")}</div>`;
+  }
+  const snapshot = () => ({ xp: totalXP(), badges: earnedBadges() });
+  const starsOf = (c, n) => { const p = n ? c / n : 0; return p >= 0.9 ? 3 : p >= 0.7 ? 2 : p >= 0.4 ? 1 : 0; };
+  function rewardHTML(before, c, n) {
+    const after = snapshot();
+    const gain = after.xp - before.xp;
+    const lvB = levelOf(before.xp), info = levelInfo(after.xp);
+    const fresh = new Set([...after.badges].filter((id) => !before.badges.has(id)));
+    const stars = starsOf(c, n);
+    const msg = stars === 3 ? "すばらしい！ かんぺきに読めています" : stars === 2 ? "いい調子！ もう少しで満点" : stars === 1 ? "その調子。まちがえた所をふり返ろう" : "根拠の文をたしかめて、もう一度やってみよう";
+    return `<section class="card reward">
+      ${stars === 3 ? `<div class="confetti" aria-hidden="true">${Array.from({ length: 28 }, (_, i) => `<i style="--x:${(i * 37) % 100}%;--d:${(i % 7) * 0.12}s;--r:${(i * 53) % 360}deg"></i>`).join("")}</div>` : ""}
+      <div class="stars" aria-label="星${stars}つ">${[1, 2, 3].map((k) => `<span class="star ${k <= stars ? "on" : ""}" style="--k:${k}">★</span>`).join("")}</div>
+      <div class="score-line"><span class="score-big">${c}</span><span class="score-of">/ ${n}問 正解</span></div>
+      <p class="reward-msg">${msg}</p>
+      <div class="xp-gain"><b>+${gain} XP</b>${info.L > lvB ? `<span class="lvup">レベルアップ！ Lv.${info.L}</span>` : ""}</div>
+      <div class="lv-row"><span class="lv-badge">Lv.${info.L}</span><div class="xpbar"><span style="width:${info.pct}%"></span></div><span class="small muted">次のレベルまで ${info.need - info.cur} XP</span></div>
+      ${fresh.size ? `<div class="new-badges"><div class="nb-title">新しいバッジをゲット！</div>${badgesHTML(fresh, fresh, { only: fresh })}</div>` : ""}
+    </section>`;
+  }
+
   /* =========================================================
      データ読み込み
      ========================================================= */
@@ -141,6 +210,10 @@
     lastSetup = setup;
     const countFor = (key, val) => DB.filter((q) => q[key] === val).length;
     const keyOf = { subjects: "subject", grades: "grade", rs: "rs_code" };
+    const xp = totalXP(), lv = levelInfo(xp), st = streak();
+    const allA = log().answers, my = aggregate(allA);
+    const earned = earnedBadges();
+    const todayN = allA.filter((a) => a.t >= +startOfDay(new Date())).length;
 
     const chipGroup = (label, key, values, labelFn) => `
       <div class="field-group">
@@ -154,33 +227,58 @@
       </div>`;
 
     $app.innerHTML = `
-      <div class="row" style="margin-bottom:4px"><h1>リーディングスキル演習</h1></div>
-      <p class="lead">教科書に出てくるような文章を、正確に読み取れるかを確かめます。<br class="sp-hide">学習者：<a href="#/dashboard" class="who-link"><b>${esc(learner().name)}</b></a>（ダッシュボードで切りかえ）</p>
+      <section class="hero">
+        <div class="hero-top">
+          <div>
+            <p class="hello">${esc(learner().name)}さん、${todayN ? `今日は${todayN}問解いたね` : "今日も読みにいこう"}</p>
+            <h1 class="wordmark"><span class="hl">ヨミトレ</span></h1>
+            <p class="tagline">文章を正しく読む力を、1問ずつきたえよう。</p>
+          </div>
+          <div class="streak ${st ? "on" : ""}" title="続けて学習した日数"><span class="streak-num">${st}</span><span class="streak-lbl">日れんぞく</span></div>
+        </div>
+        <div class="lv-row"><span class="lv-badge">Lv.${lv.L}</span><div class="xpbar"><span style="width:${lv.pct}%"></span></div><span class="small">${xp} XP</span></div>
+      </section>
 
-      <section class="card">
-        ${chipGroup("教科", "subjects", SUBJECTS)}
-        ${chipGroup("学年", "grades", GRADES)}
-        ${chipGroup("リーディングスキル（RS）", "rs", RS.map((r) => r.code), (c) => `${RS_MAP[c].no} ${RS_MAP[c].name}`)}
-        <div class="field-group">
-          <div class="field-label">問題数</div>
-          <div class="chips">${[5, 10, 20, 0].map((n) => `
-            <button class="chip" data-count="${n}">${n ? n + "問" : "すべて"}</button>`).join("")}
-            <button class="chip" data-wrong>前回まちがえた問題だけ</button>
+      <button class="quick" id="quick">
+        <span class="quick-main"><b>10問チャレンジ</b><span>全教科からランダムに出題</span></span>
+        <span class="quick-go" aria-hidden="true">スタート</span>
+      </button>
+
+      <details class="card setup" ${lastSetup.opened ? "open" : ""} id="setupbox">
+        <summary><b>教科やスキルをえらんで解く</b><span class="small muted">教科・学年・スキル・問題数</span></summary>
+        <div class="setup-body">
+          ${chipGroup("教科", "subjects", SUBJECTS)}
+          ${chipGroup("学年", "grades", GRADES)}
+          ${chipGroup("スキル", "rs", RS.map((r) => r.code), (c) => `${RS_MAP[c].nick}`)}
+          <div class="field-group">
+            <div class="field-label">問題数</div>
+            <div class="chips">${[5, 10, 20, 0].map((n) => `
+              <button class="chip" data-count="${n}">${n ? n + "問" : "すべて"}</button>`).join("")}
+              <button class="chip" data-wrong>前回まちがえた問題だけ</button>
+            </div>
+          </div>
+          <div class="row" style="margin-top:16px">
+            <div class="match" id="match"></div>
+            <div class="spacer"></div>
+            <button class="btn primary lg" id="start">この条件でスタート</button>
           </div>
         </div>
-        <div class="row" style="margin-top:20px">
-          <div class="match" id="match"></div>
-          <div class="spacer"></div>
-          <button class="btn primary lg" id="start">スタート</button>
-        </div>
-      </section>
+      </details>
+
       ${PASSAGES.length ? `<a class="card long-promo" href="#/long">
-        <span class="lp-badge">国語</span>
-        <span class="lp-body"><b>長文読解</b><span class="small muted">600〜800字の文章を読んで、4〜5問に答えます（${PASSAGES.length}文章）</span></span>
+        <span class="lp-badge" aria-hidden="true">長文</span>
+        <span class="lp-body"><b>長文読解</b><span class="small muted">600〜800字の文章を読んで、5問に答える（${PASSAGES.length}文章）</span></span>
         <span class="lp-arrow" aria-hidden="true">›</span></a>` : ""}
+
       <section class="card">
-        <h2>7つのリーディングスキル</h2>
-        <div class="small">${RS.map((r) => `<div><b>${r.no} ${r.name}</b> <span class="muted">— ${r.desc}</span></div>`).join("")}</div>
+        <div class="row" style="margin-bottom:10px"><h2 style="margin:0">わたしのスキル</h2><div class="spacer"></div><span class="small muted">これまでの正答率</span></div>
+        ${barsHTML(my.byRs)}
+        ${my.n ? "" : `<p class="small muted" style="margin:10px 0 0">問題を解くと、スキルごとの正答率がここに出ます。</p>`}
+      </section>
+
+      <section class="card">
+        <div class="row" style="margin-bottom:10px"><h2 style="margin:0">バッジ</h2><div class="spacer"></div><a class="small" href="#/dashboard">${earned.size} / ${BADGES.length}　すべて見る</a></div>
+        ${badgesHTML(earned, null, { limit: 6 })}
       </section>`;
 
     const refresh = () => {
@@ -193,16 +291,19 @@
       $app.querySelector(".chip[data-wrong]").setAttribute("aria-pressed", setup.onlyWrong);
     };
     const allValues = { subjects: SUBJECTS, grades: GRADES, rs: RS.map((r) => r.code) };
+    document.getElementById("setupbox").addEventListener("toggle", (e) => { setup.opened = e.target.open; });
 
     $app.onclick = (e) => {
       const t = e.target.closest("button");
       if (!t) return;
+      if (t.id === "quick") { const q = defaultSetup(); return startFromSetup(q); }
       if (t.dataset.group) { const s = setup[t.dataset.group]; s.has(t.dataset.val) ? s.delete(t.dataset.val) : s.add(t.dataset.val); }
       else if (t.dataset.all) { allValues[t.dataset.all].forEach((v) => setup[t.dataset.all].add(v)); }
       else if (t.dataset.none) { setup[t.dataset.none].clear(); }
       else if (t.dataset.count !== undefined) { setup.count = Number(t.dataset.count); }
       else if (t.hasAttribute("data-wrong")) { setup.onlyWrong = !setup.onlyWrong; }
       else if (t.id === "start") { startFromSetup(setup); return; }
+      else return;
       refresh();
     };
     refresh();
@@ -212,7 +313,7 @@
      画面2: 演習
      ========================================================= */
   function startSession(questions, regen) {
-    session = { questions, index: 0, results: [], startedAt: Date.now(), answered: false, regen, saved: false };
+    session = { questions, index: 0, results: [], startedAt: Date.now(), answered: false, regen, saved: false, before: snapshot() };
     location.hash = "#/quiz";
     if (location.hash === "#/quiz") viewQuiz();
   }
@@ -233,7 +334,7 @@
       </div>
       <article class="card">
         <div class="tags">
-          <span class="tag">${esc(rs.no)} ${esc(rs.name)}</span>
+          <span class="tag" title="${esc(rs.no)} ${esc(rs.name)}">${esc(rs.nick)}</span>
           <span class="tag plain">${esc(q.subject)}・${esc(q.grade)}</span>
           <span class="tag plain">${esc(q.unit || q.field || "")}</span>
         </div>
@@ -286,9 +387,12 @@
       else if (k === i) b.classList.add("wrong");
       else b.classList.add("dim");
     });
+    let combo = 0;
+    for (let k = session.results.length - 1; k >= 0 && session.results[k].ok; k--) combo++;
+    $app.querySelectorAll(".choice")[correctIdx].querySelector(".txt").classList.add("hl-on");
     document.getElementById("fb").innerHTML = `
       <div class="feedback ${ok ? "ok" : "ng"}" role="status">
-        <div class="verdict">${ok ? "正解" : "不正解"}<span class="muted small" style="font-weight:400">正答は ${q.answer}</span></div>
+        <div class="verdict">${ok ? "正解！" : "不正解"}<span class="xp-chip">+${ok ? XP_OK : XP_NG} XP</span>${ok && combo >= 2 ? `<span class="combo">${combo}問れんぞく正解</span>` : ""}<span class="muted small" style="font-weight:400;margin-left:auto">正答は ${q.answer}</span></div>
         <div class="basis"><b>根拠：</b>${esc(q.explanation || "（根拠は未登録です）")}</div>
       </div>`;
     const nb = document.getElementById("next");
@@ -320,7 +424,7 @@
   function barsHTML(stats, prev) {
     return `<div class="bars">${RS.map((r) => {
       const s = stats[r.code];
-      if (!s || !s.t) return `<div class="bar-row none"><div class="lbl">${r.no} ${r.name}</div><div class="bar-track"></div><div class="val">—</div></div>`;
+      if (!s || !s.t) return `<div class="bar-row none"><div class="lbl">${r.nick}<small>${r.no} ${r.name}</small></div><div class="bar-track"></div><div class="val">—</div></div>`;
       const p = pct(s.c, s.t);
       let delta = "";
       if (prev) {
@@ -328,8 +432,8 @@
         if (ps && ps.t) { const d = p - pct(ps.c, ps.t); delta = `<span class="delta">${d > 0 ? "▲" : d < 0 ? "▼" : "±"}${Math.abs(d)}</span>`; }
       }
       return `<div class="bar-row" title="${r.no} ${r.name}：${s.c}/${s.t}問 正解（${p}%）">
-        <div class="lbl">${r.no} ${r.name}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${p}%"></div></div>
+        <div class="lbl">${r.nick}<small>${r.no} ${r.name}</small></div>
+        <div class="bar-track"><div class="bar-fill ${p >= 80 ? "hi" : p < 50 ? "lo" : ""}" style="width:${p}%"></div></div>
         <div class="val"><b>${p}%</b> <span class="small">${s.c}/${s.t}</span>${delta}</div></div>`;
     }).join("")}</div>`;
   }
@@ -349,15 +453,10 @@
     const totalMs = res.reduce((s, r) => s + r.ms, 0);
 
     $app.innerHTML = `
-      <h1>結果</h1>
+      ${rewardHTML(session.before || { xp: 0, badges: new Set() }, correct, res.length)}
+      <p class="small muted center">かかった時間 ${fmtSec(totalMs)}（1問平均 ${fmtSec(totalMs / Math.max(1, res.length))}）</p>
       <section class="card">
-        <div class="score-hero">
-          <div class="big">${pct(correct, res.length)}<small>%</small></div>
-          <div class="sub">${res.length}問中 <b>${correct}</b>問 正解 ／ かかった時間 ${fmtSec(totalMs)}（1問平均 ${fmtSec(totalMs / Math.max(1, res.length))}）</div>
-        </div>
-      </section>
-      <section class="card">
-        <h2>リーディングスキル別の正答率</h2>
+        <h2>スキル別の正答率</h2>
         ${barsHTML(byRs)}
       </section>
       <section class="card">
@@ -366,7 +465,7 @@
           const q = qById[r.id];
           return `<details class="review-item" ${!r.ok && wrong.length <= 3 ? "open" : ""}>
             <summary><span class="mark ${r.ok ? "ok" : "ng"}">${r.ok ? "○" : "×"}</span>
-              <span><span class="small muted">${i + 1}. ${esc(RS_MAP[q.rs_code].no)} ${esc(q.subject)}・${esc(q.grade)}</span><br>${esc(q.question)}</span></summary>
+              <span><span class="small muted">${i + 1}. ${esc(RS_MAP[q.rs_code].nick)}・${esc(q.subject)}・${esc(q.grade)}</span><br>${esc(q.question)}</span></summary>
             <div class="review-body">
               <div class="passage ${q.subject === "英語" && isEnglishText(q.passage) ? "en" : ""}">${esc(q.passage)}</div>
               <div>あなたの答え：<b>${r.chosen}</b>　正答：<b>${q.answer}</b>（${esc(q.choices[LETTERS.indexOf(q.answer)])}）</div>
@@ -434,7 +533,7 @@
   function startLong(p) {
     if (!p) return;
     lsession = { p, phase: "read", qi: 0, results: [], startedAt: Date.now(), readStart: Date.now(), readMs: 0,
-      tab: "text", answered: false, saved: false, done: false, mark: null };
+      tab: "text", answered: false, saved: false, done: false, mark: null, before: snapshot() };
     location.hash = "#/long/play";
     if (location.hash === "#/long/play") viewLongPlay();
   }
@@ -489,7 +588,7 @@
               <button class="btn primary" id="lgo2">読み終えた・設問へ</button>
             </div>` : `
             <div class="tags">
-              <span class="tag">${esc(RS_MAP[q.rs_code].no)} ${esc(RS_MAP[q.rs_code].name)}</span>
+              <span class="tag" title="${esc(RS_MAP[q.rs_code].no)} ${esc(RS_MAP[q.rs_code].name)}">${esc(RS_MAP[q.rs_code].nick)}</span>
               ${q.kind ? `<span class="tag plain">${esc(q.kind)}</span>` : ""}
             </div>
             <div class="question">${esc(q.question)}</div>
@@ -552,9 +651,10 @@
     });
     L.mark = q.evidence ? { para: q.evidence_para, text: q.evidence } : (q.evidence_para ? { para: q.evidence_para, text: "" } : null);
     document.getElementById("lr-body").innerHTML = passageHTML(p, L.mark);
+    $app.querySelectorAll(".choice")[correctIdx].querySelector(".txt").classList.add("hl-on");
     document.getElementById("lfb").innerHTML = `
       <div class="feedback ${ok ? "ok" : "ng"}" role="status">
-        <div class="verdict">${ok ? "正解" : "不正解"}<span class="muted small" style="font-weight:400">正答は ${q.answer}</span></div>
+        <div class="verdict">${ok ? "正解！" : "不正解"}<span class="xp-chip">+${ok ? XP_OK : XP_NG} XP</span><span class="muted small" style="font-weight:400;margin-left:auto">正答は ${q.answer}</span></div>
         <div class="basis"><b>根拠：</b>${esc(q.explanation || "")}</div>
         ${L.mark ? `<div class="ev-quote"><span class="small muted">第${L.mark.para}段落</span>${L.mark.text ? `「${esc(L.mark.text)}」` : ""}</div>
         <button class="btn small-btn" id="lshow">本文で根拠を確かめる</button>` : ""}
@@ -602,15 +702,15 @@
     const others = PASSAGES.filter((x) => x.id !== p.id && !lastLongSession(x.id));
     const nextP = others.find((x) => x.grade === p.grade) || others[0];
     $app.innerHTML = `
-      <h1>結果<span class="muted small" style="font-weight:400">　${esc(p.title)}</span></h1>
+      <p class="result-title">長文読解「${esc(p.title)}」</p>
+      ${rewardHTML(L.before || { xp: 0, badges: new Set() }, correct, res.length)}
+      <div class="read-stats">
+        <div><span class="small muted">読む時間</span><b>${fmtSec(L.readMs)}</b></div>
+        <div><span class="small muted">読む速さ</span><b>${spd ? `${spd}字/分` : "—"}</b></div>
+        <div><span class="small muted">答える時間</span><b>${fmtSec(ansMs)}</b></div>
+      </div>
       <section class="card">
-        <div class="score-hero">
-          <div class="big">${correct}<small>/${res.length}問</small></div>
-          <div class="sub">読む時間 <b>${fmtSec(L.readMs)}</b>${spd ? `（1分あたり約${spd}字）` : ""} ／ 答える時間 ${fmtSec(ansMs)}</div>
-        </div>
-      </section>
-      <section class="card">
-        <h2>リーディングスキル別</h2>
+        <h2>スキル別</h2>
         ${barsHTML(byRs)}
       </section>
       <section class="card">
@@ -619,7 +719,7 @@
           const q = qById[r.id];
           return `<details class="review-item" ${!r.ok ? "open" : ""}>
             <summary><span class="mark ${r.ok ? "ok" : "ng"}">${r.ok ? "○" : "×"}</span>
-              <span><span class="small muted">設問${q.no || ""} ${esc(RS_MAP[q.rs_code].no)}${q.kind ? "・" + esc(q.kind) : ""}</span><br>${esc(q.question)}</span></summary>
+              <span><span class="small muted">設問${q.no || ""} ${esc(RS_MAP[q.rs_code].nick)}${q.kind ? "・" + esc(q.kind) : ""}</span><br>${esc(q.question)}</span></summary>
             <div class="review-body">
               <div>あなたの答え：<b>${r.chosen}</b>　正答：<b>${q.answer}</b>（${esc(q.choices[LETTERS.indexOf(q.answer)])}）</div>
               ${q.evidence_para ? `<div class="ev-quote"><span class="small muted">第${q.evidence_para}段落</span>${q.evidence ? `「${esc(q.evidence)}」` : ""}</div>` : ""}
@@ -780,6 +880,10 @@
         ${kpi("学習した日数", `${A.days}<small>日</small>`, `連続 ${streak()}日（今日まで）`)}
         ${kpi("1問あたりの時間", A.n ? fmtSec(A.ms / A.n) : "—", A.n && P.n ? `前の期間 ${fmtSec(P.ms / P.n)}` : "")}
       </section>
+      ${(() => { const xp = totalXP(), lv = levelInfo(xp), eb = earnedBadges(); return `<section class="card">
+        <div class="row" style="margin-bottom:10px"><h2 style="margin:0">レベルとバッジ</h2><div class="spacer"></div><span class="small muted">バッジ ${eb.size} / ${BADGES.length}</span></div>
+        <div class="lv-row" style="margin-bottom:14px"><span class="lv-badge">Lv.${lv.L}</span><div class="xpbar"><span style="width:${lv.pct}%"></span></div><span class="small muted">${xp} XP（全期間）</span></div>
+        ${badgesHTML(eb)}</section>`; })()}
 
       ${longS.length ? `<section class="card">
         <h2>長文読解<span class="muted small">（この期間）</span></h2>
@@ -801,21 +905,21 @@
       </section>
 
       <section class="card">
-        <h2>リーディングスキル別の正答率<span class="muted small">（▲▼は前の期間との差・pt）</span></h2>
+        <h2>スキル別の正答率<span class="muted small">（▲▼は前の期間との差・pt）</span></h2>
         ${A.n ? barsHTML(A.byRs, P.byRs) : `<div class="empty">この期間の記録はありません</div>`}
       </section>
 
       ${weak.length ? `<section class="card">
         <h2>重点的に練習したいところ</h2>
         <div class="weak-list">${weak.map((w) => `
-          <div class="weak"><div><b>${esc(w.s)} × ${RS_MAP[w.rs].no} ${RS_MAP[w.rs].name}</b><div class="small muted">正答率 ${w.p}%（${w.t}問）</div></div>
+          <div class="weak"><div><b>${esc(w.s)} × ${RS_MAP[w.rs].nick}</b><div class="small muted">正答率 ${w.p}%（${w.t}問）</div></div>
           <button class="btn small-btn" data-practice="${esc(w.s)}|${w.rs}">練習する</button></div>`).join("")}
         </div></section>` : ""}
 
       <section class="card">
-        <h2>教科 × リーディングスキル</h2>
+        <h2>教科 × スキル</h2>
         ${A.n ? `<div class="scroll"><table class="heat">
-          <thead><tr><th></th>${RS.map((x) => `<th title="${x.no} ${x.name}">${x.no}<span>${x.short}</span></th>`).join("")}<th>合計</th></tr></thead>
+          <thead><tr><th></th>${RS.map((x) => `<th title="${x.no} ${x.name}">${x.nick}<span>${x.no}</span></th>`).join("")}<th>合計</th></tr></thead>
           <tbody>${SUBJECTS.map((s) => `<tr><th>${s}</th>${RS.map((x) => heatCell(A.cross[s + "|" + x.code])).join("")}${heatCell(A.bySub[s], true)}</tr>`).join("")}</tbody>
         </table></div>
         <div class="small muted" style="margin-top:6px">数字は正答率（%）、小さい数字は解答数。色が濃いほど正答率が高い。</div>` : `<div class="empty">この期間の記録はありません</div>`}
@@ -878,10 +982,10 @@
         const rows = [["学習者", "日時", "問題ID", "教科", "学年", "RSコード", "RS項目", "正誤", "選んだ答え", "解答時間(秒)", "モード", "文章ID"]];
         log().answers.forEach((a) => { const d = new Date(a.t); rows.push([learner().name, `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`, a.q, a.s, a.g, a.rs, RS_MAP[a.rs] ? RS_MAP[a.rs].name : "", a.ok ? "正解" : "不正解", a.c, Math.round((a.ms || 0) / 100) / 10, a.m === "L" ? "長文" : "短文", a.p || ""]); });
         const csv = "﻿" + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
-        return msg(download(`RST記録_${learner().name}_${ymd(new Date())}.csv`, csv, "text/csv") ? "CSVを書き出しました。" : "この環境では書き出しができません。");
+        return msg(download(`ヨミトレ記録_${learner().name}_${ymd(new Date())}.csv`, csv, "text/csv") ? "CSVを書き出しました。" : "この環境では書き出しができません。");
       }
       if (b.id === "exp-json") {
-        return msg(download(`RSTバックアップ_${ymd(new Date())}.json`, JSON.stringify(STORE), "application/json") ? "バックアップを書き出しました。" : "この環境では書き出しができません。");
+        return msg(download(`ヨミトレバックアップ_${ymd(new Date())}.json`, JSON.stringify(STORE), "application/json") ? "バックアップを書き出しました。" : "この環境では書き出しができません。");
       }
       if (b.id === "reset" || b.id === "ldel") {
         if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "もう一度押すと実行します"; b.classList.remove("ghost"); return; }
@@ -907,7 +1011,7 @@
       const rd = new FileReader();
       rd.onload = () => {
         try { const n = importBackup(JSON.parse(rd.result)); viewDashboard(); msg(`読み込みました（${n}件の解答を追加）。`); }
-        catch (err) { msg("読み込めませんでした。RSTのバックアップファイルか確認してください。"); }
+        catch (err) { msg("読み込めませんでした。ヨミトレ（RSTトレーニング）のバックアップファイルか確認してください。"); }
       };
       rd.readAsText(f);
     };
