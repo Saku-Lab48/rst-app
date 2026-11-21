@@ -163,6 +163,354 @@
     </section>`;
   }
 
+
+  /* =========================================================
+     考え方のアドバイス（スキル別・設問のパターン別）
+     ========================================================= */
+  const TIPS = {
+    DEP: { lead: "文の骨組みをつかむ", steps: [
+        "まず文の最後にある述語（「〜した」「〜だ」）を見つける。",
+        "述語から「だれが・何が」をさかのぼって探す。「は」「が」のついた言葉が目印。",
+        "「〜の」「〜した」のように、ほかの言葉をくわしくしている部分は、いったん外して読む。"],
+      check: "選んだのは、述語と直接つながる言葉だった？ くわしくしている部分の中の言葉を選んでいないか見直そう。" },
+    ANA: { lead: "指示語が指すものを見つける", steps: [
+        "指示語（これ・それ・その・そこ など）の答えは、たいてい直前の文や言葉にある。",
+        "見つけた候補を、指示語の場所に入れて読んでみる。意味が通れば正解に近い。",
+        "主語が書かれていない文は、前の文の主語が続いていることが多い。"],
+      check: "選んだ答えを指示語の場所に入れて、もう一度読んでみよう。意味が通らなかったら、さらに前の文を見よう。" },
+    PARA: { lead: "同じ意味の文を見分ける", steps: [
+        "基準文の「だれが・何を・どうした」を書き出す。",
+        "選択肢と1つずつ比べる。受け身（〜される）、否定（〜ない）、比べる向き（より・ほど）が入れかわっていないか注意する。",
+        "同じ言葉が使われていても、関係が逆になっていれば別の意味。"],
+      check: "言葉が似ているだけで選んでいない？「だれが」「何を」の関係が、基準文と同じか確かめよう。" },
+    INF: { lead: "書かれていることから確実に考える", steps: [
+        "本文に書いてあることだけを根拠にする。常識や想像で足さない。",
+        "「必ず」「すべて」「まったく」など、言いすぎの言葉がある選択肢は要注意。",
+        "選んだ答えの根拠になる文を、本文の中で指させるか確かめる。"],
+      check: "その答えの根拠を、本文の中で指させる？ 本文にないことを足していないか見直そう。" },
+    REP: { lead: "文章と図・表を対応させる", steps: [
+        "本文の数・順番・位置を、メモや簡単な図に書き出す。",
+        "選択肢と、1つの項目ずつ比べる（いちばん大きいもの、順番、上下左右など）。",
+        "計算が必要なときは、途中の数も書いておく。"],
+      check: "本文の数や順番を書き出して、選択肢と1つずつ比べ直そう。1か所だけちがう選択肢に注意。" },
+    INST_DIC: { lead: "定義にあてはまる例を選ぶ", steps: [
+        "定義を「〜で、〜なもの」のように、いくつかの条件に分ける。",
+        "選択肢が、条件を全部満たしているか1つずつ確かめる。",
+        "名前やふんいきが似ているだけの選択肢に注意する。"],
+      check: "定義の条件を全部満たしているか、1つずつチェックしよう。1つでも合わない条件があれば×。" },
+    INST_SCI: { lead: "法則や式にあてはめる", steps: [
+        "式や法則のどこに、どの数を入れるのかを先に確かめる。",
+        "単位（cmとm、分と秒など）をそろえてから計算する。",
+        "答えが大きすぎたり小さすぎたりしないか、だいたいの数で見積もる。"],
+      check: "式のどこにどの数を入れたか、単位がそろっているかを見直そう。" },
+  };
+  const PATTERN_TIPS = [
+    [/主語と述語/, "述語（文の最後の「〜した」「〜だ」）を先に見つけ、「だれが・何が」そうしたのかをさかのぼって探そう。途中の「〜した」「〜の」は、くわしくしているだけの部分。"],
+    [/指す|指示語|「これ」|「それ」|「その」|「この」|「そこ」|「そう」|「こう」/, "指示語の答えは、たいてい直前にある。見つけた言葉を指示語の場所に入れて読み、意味が通るか確かめよう。"],
+    [/同じ意味|同じ内容|言いかえ/, "基準文の「だれが・何を・どうした」を、選択肢と1つずつ比べよう。受け身（〜される）、否定（〜ない）、比べる向き（より・ほど）が入れかわっていないか注意。"],
+    [/確実にいえる|確実に/, "「確実にいえる」は、本文だけで100%言えるもの。本文にない情報を足している選択肢や、「必ず」「すべて」のような言いすぎの選択肢は×。"],
+    [/理由|なぜ/, "「〜から」「〜ため」「そのため」「なぜなら」など、理由を表す言葉の近くに答えがあることが多い。"],
+    [/気持ち|心情|思い/, "人物の行動・表情・せりふ（ため息、目を細める、手がふるえる など）が気持ちのヒント。自分ならどう感じるかではなく、本文の様子から考えよう。"],
+    [/要旨|筆者の考え|伝えたい|主張/, "筆者の考えは、最後の段落や「〜が大切だ」「〜べきだ」「〜のである」の文にまとまっていることが多い。一部分だけの内容や、言いすぎの選択肢に注意。"],
+    [/段落の役割|目的|例をあげた|構成|順番として/, "その段落や例が、前後とどうつながるかを考えよう。例のすぐ前後に、例で言いたいことがまとめて書いてあることが多い。"],
+    [/グラフ|表|図|年表|柱状図|配置|位置|様子として正しい|座り方/, "本文の数・順番・位置を、メモや図に書き出してから、選択肢と1つずつ比べよう。"],
+    [/のはだれ|は何ですか|のは何|はどこ/, "その動作をしている人・物を探すときは、述語から「は」「が」のついた言葉へさかのぼろう。くわしくしている部分にまどわされないように。"],
+    [/例として正しい|にあたるもの|あてはまる|例を選び/, "定義をいくつかの条件に分けて、選択肢がその条件を全部満たすか確かめよう。名前が似ているだけのものに注意。"],
+  ];
+  function tipFor(q) {
+    const t = TIPS[q.rs_code] || TIPS.INF;
+    const text = (q.question || "") + " " + (q.kind || "");
+    const hit = q.rs_code === "INST_SCI" ? null : PATTERN_TIPS.find(([re]) => re.test(text));
+    return { lead: t.lead, point: hit ? hit[1] : t.steps[0], check: t.check, steps: t.steps };
+  }
+  function adviceHTML(q, ok) {
+    const t = tipFor(q);
+    return ok
+      ? `<details class="advice ok"><summary>考え方のポイント</summary><p>${esc(t.point)}</p></details>`
+      : `<div class="advice"><div class="advice-h">次はここに気をつけよう</div><p class="advice-point">${esc(t.point)}</p><p class="advice-check">${esc(t.check)}</p></div>`;
+  }
+
+  /* ---------- 足場かけ：同じスキルで、より易しい問題を選ぶ ---------- */
+  function easierFor(q, exclude, grade) {
+    const maxD = Math.max(1, (q.difficulty || 2) - 1);
+    const subj = q.subject || "国語";
+    let pool = DB.filter((x) => x.rs_code === q.rs_code && x.id !== q.id && !exclude.has(x.id) && (x.difficulty || 2) <= maxD
+      && (!grade || x.grade <= grade));
+    if (!pool.length) pool = DB.filter((x) => x.rs_code === q.rs_code && x.id !== q.id && !exclude.has(x.id) && (x.difficulty || 2) <= maxD);
+    if (!pool.length) return null;
+    const score = (x) => (x.subject === subj ? 4 : 0) + (x.unit && x.unit === q.unit ? 3 : 0) + (x.field && x.field === q.field ? 1 : 0) + (x.grade <= (q.grade || "中3") ? 1 : 0) + Math.random() * 1.5;
+    return pool.map((x) => [score(x), x]).sort((a, b) => b[0] - a[0])[0][1];
+  }
+  function scaffoldSet(wrongQs, grade) {
+    const used = new Set(wrongQs.map((q) => q.id)), out = [];
+    wrongQs.forEach((q) => { const e = easierFor(q, used, grade); if (e) { used.add(e.id); out.push(e); } });
+    return out;
+  }
+
+  let QMAP = null;
+  const qById = (id) => { if (!QMAP || QMAP.size !== DB.length) QMAP = new Map(DB.map((q) => [q.id, q])); return QMAP.get(id); };
+  // まちがえた問題に「近い」問題を選ぶ（同じ教科・単元を優先）
+  function nearScore(x, refs) {
+    let best = 0;
+    refs.forEach((q) => { best = Math.max(best, (x.subject === q.subject ? 4 : 0) + (x.unit && x.unit === q.unit ? 3 : 0) + (x.field && x.field === q.field ? 1 : 0)); });
+    return best + Math.random() * 1.5;
+  }
+  function pickNear(refs, filter, n, used) {
+    const seen = seenSet();
+    return DB.filter((x) => filter(x) && !used.has(x.id))
+      .map((x) => [nearScore(x, refs) + (seen.has(x.id) ? 0 : 2), x])
+      .sort((a, b) => b[0] - a[0]).slice(0, n).map((p) => { used.add(p[1].id); return p[1]; });
+  }
+
+  /* =========================================================
+     学習ルート：診断 → 補充 → 確認
+     ========================================================= */
+  const DIAG_PER_RS = 2, REVIEW_N = 5, CHECK_N = 5, PASS = 4;
+  const getRoute = () => log().route || null;
+  function seenSet() { return new Set(log().answers.map((a) => a.q)); }
+  function pickQs(filter, n, preferUnseen) {
+    const seen = preferUnseen ? seenSet() : new Set();
+    const pool = shuffle(DB.filter(filter));
+    const fresh = pool.filter((q) => !seen.has(q.id)), old = pool.filter((q) => seen.has(q.id));
+    // 教科がかたよらないように、教科ごとに順番に取る
+    const bySub = {};
+    fresh.concat(old).forEach((q) => { (bySub[q.subject] = bySub[q.subject] || []).push(q); });
+    const subs = shuffle(Object.keys(bySub)), out = [];
+    while (out.length < n && subs.some((s) => bySub[s].length)) subs.forEach((s) => { if (out.length < n && bySub[s].length) out.push(bySub[s].shift()); });
+    return out;
+  }
+  function startDiagnosis(grade) {
+    const qs = [];
+    RS.forEach((r) => {
+      let got = pickQs((q) => q.rs_code === r.code && q.grade <= grade && q.difficulty === 2, DIAG_PER_RS, true);
+      if (got.length < DIAG_PER_RS) got = got.concat(pickQs((q) => q.rs_code === r.code && q.grade <= grade && !got.includes(q), DIAG_PER_RS - got.length, true));
+      qs.push(...got);
+    });
+    log().route = { v: 1, grade, startedAt: Date.now(), diag: null, weak: [], items: {} };
+    save();
+    startSession(shuffle(qs), null, { kind: "diag" });
+  }
+  // 補充で解き直す問題（まだ正解できていない、まちがえた問題。最大2問）
+  function retryTargets(rs) {
+    const R = getRoute(), it = R && R.items[rs];
+    if (!it || !it.missed) return [];
+    const fixed = it.fixed || [];
+    return it.missed.filter((id) => !fixed.includes(id)).map(qById).filter(Boolean).slice(0, 2);
+  }
+  function startReview(rs) {
+    const R = getRoute(); if (!R) return;
+    const it = R.items[rs] || {};
+    const retry = retryTargets(rs);
+    const refs = retry.length ? retry : (it.missed || []).map(qById).filter(Boolean);
+    const used = new Set((it.missed || []).concat(it.exId ? [it.exId] : []));
+    const inGrade = (q) => q.rs_code === rs && q.grade <= R.grade;
+    let easy = [];
+    // まず、まちがえた問題1問ごとに、それより易しい近い問題を選ぶ
+    refs.forEach((q) => { const e = easierFor(q, used, R.grade); if (e && easy.length < 3) { used.add(e.id); easy.push(e); } });
+    easy = easy.concat(pickNear(refs, (q) => inGrade(q) && q.difficulty === 1, 3 - easy.length, used));
+    let normal = pickNear(refs, (q) => inGrade(q) && q.difficulty === 2, 2, used);
+    let qs = easy.concat(normal);
+    if (qs.length < REVIEW_N) qs = qs.concat(pickNear(refs, (q) => q.rs_code === rs, REVIEW_N - qs.length, used));
+    // 最後に、まちがえた問題そのものにもう一度挑戦
+    startSession(qs.concat(retry), null, { kind: "review", rs, retryIds: retry.map((q) => q.id) });
+  }
+  function startCheck(rs) {
+    const R = getRoute(); if (!R) return;
+    const avoid = new Set((R.items[rs] && R.items[rs].missed) || []);
+    let qs = pickQs((q) => q.rs_code === rs && q.grade <= R.grade && q.difficulty >= 2 && !avoid.has(q.id), CHECK_N, true);
+    if (qs.length < CHECK_N) qs = qs.concat(pickQs((q) => q.rs_code === rs && q.difficulty >= 2 && !qs.includes(q), CHECK_N - qs.length, true));
+    startSession(shuffle(qs), null, { kind: "check", rs });
+  }
+  function applyRoute(meta, res) {
+    const R = getRoute(); if (!R || !meta) return null;
+    const byRs = {};
+    res.forEach((r) => { (byRs[r.rs] = byRs[r.rs] || { c: 0, t: 0 }); byRs[r.rs].t++; byRs[r.rs].c += r.ok ? 1 : 0; });
+    const out = { kind: meta.kind, rs: meta.rs };
+    if (meta.kind === "diag") {
+      R.diag = { at: Date.now(), byRs };
+      R.weak = RS.map((r) => r.code).filter((c) => byRs[c] && byRs[c].c < byRs[c].t);
+      R.items = Object.fromEntries(R.weak.map((c) => [c, { stage: "review", round: 1, hist: [],
+        missed: res.filter((r) => r.rs === c && !r.ok).map((r) => r.id), fixed: [] }]));
+      out.weak = R.weak;
+    } else if (R.items[meta.rs]) {
+      const it = R.items[meta.rs], s = byRs[meta.rs] || { c: 0, t: 0 };
+      it.hist.push({ kind: meta.kind, at: Date.now(), c: s.c, t: s.t });
+      it.missed = it.missed || []; it.fixed = it.fixed || [];
+      if (meta.kind === "review") {
+        it.stage = "check";
+        const retry = meta.retryIds || [];
+        out.retry = res.filter((r) => retry.includes(r.id)).map((r) => ({ id: r.id, ok: r.ok }));
+        out.retry.forEach((r) => { if (r.ok && !it.fixed.includes(r.id)) it.fixed.push(r.id); });
+        out.leftCount = it.missed.filter((id) => !it.fixed.includes(id)).length;
+      }
+      if (meta.kind === "check") {
+        out.pass = s.c >= Math.min(PASS, s.t);
+        if (out.pass) { it.stage = "done"; it.doneAt = Date.now(); }
+        else {
+          it.stage = "review"; it.round++;
+          // 確認テストでまちがえた問題も、次の補充の「解き直し」の対象にする
+          const newMiss = res.filter((r) => r.rs === meta.rs && !r.ok).map((r) => r.id);
+          it.missed = it.missed.filter((id) => !it.fixed.includes(id)).concat(newMiss.filter((id) => !it.missed.includes(id))).slice(0, 3);
+          it.fixed = [];
+        }
+      }
+      out.c = s.c; out.t = s.t;
+    }
+    save();
+    return out;
+  }
+  function routeNext() {
+    const R = getRoute();
+    if (!R || !R.diag) return { step: 0 };
+    const todo = R.weak.filter((c) => R.items[c] && R.items[c].stage !== "done");
+    if (!todo.length) return { step: 3, done: true };
+    const c = todo[0], st = R.items[c].stage;
+    return { step: st === "review" ? 1 : 2, rs: c, stage: st };
+  }
+  function stepperHTML(step, done) {
+    const names = ["診断", "補充", "確認"];
+    return `<ol class="stepper">${names.map((n, i) => {
+      const cls = done || step > i ? "done" : step === i ? "now" : "";
+      return `<li class="${cls}"><span class="st-dot">${done || step > i ? "✓" : i + 1}</span><span class="st-name">${n}</span></li>`;
+    }).join("")}</ol>`;
+  }
+  function nextActionHTML() {
+    const n = routeNext(), R = getRoute();
+    if (n.step === 0) return `<button class="btn primary lg" data-go="route">診断テストを受ける（${RS.length * DIAG_PER_RS}問）</button>`;
+    if (n.done) return `<div class="small">補充したスキルを、すべて習得しました。</div><button class="btn primary" data-go="route">もう一度診断する</button>`;
+    const r = RS_MAP[n.rs];
+    return n.stage === "review"
+      ? `<div class="small">次は「<b>${esc(r.nick)}</b>」の補充${R.items[n.rs].round > 1 ? `（${R.items[n.rs].round}回目）` : ""}</div><button class="btn primary lg" data-lesson="${n.rs}">コツを見て練習する</button>`
+      : `<div class="small">次は「<b>${esc(r.nick)}</b>」の確認テスト（${CHECK_N}問中${PASS}問で合格）</div><button class="btn primary lg" data-check="${n.rs}">確認テストを受ける</button>`;
+  }
+  function bindRouteButtons(e) {
+    const b = e.target.closest("[data-go],[data-lesson],[data-check],[data-review]");
+    if (!b) return false;
+    if (b.dataset.go === "route") { location.hash = "#/route"; return true; }
+    if (b.dataset.lesson) { lessonRs = b.dataset.lesson; location.hash = "#/lesson"; return true; }
+    if (b.dataset.review) { startReview(b.dataset.review); return true; }
+    if (b.dataset.check) { startCheck(b.dataset.check); return true; }
+    return false;
+  }
+
+  function viewRoute() {
+    setNav("home");
+    const R = getRoute(), n = routeNext();
+    const gradeSel = (R && R.grade) || "中1";
+    $app.innerHTML = `
+      <h1>学習ルート</h1>
+      <p class="lead">「診断」で苦手なスキルを見つけ、「補充」でコツをつかみ、「確認」で身についたかを確かめます。</p>
+      <section class="card route-main">
+        ${stepperHTML(n.step, n.done)}
+        ${!R || !R.diag || n.done ? `
+          <div class="diag-start">
+            <h2>診断テスト</h2>
+            <p class="small muted">7つのスキルを2問ずつ、全${RS.length * DIAG_PER_RS}問。今の学年までの問題から出ます。</p>
+            <div class="field-label">学年</div>
+            <div class="chips" id="gsel">${GRADES.map((g) => `<button class="chip" data-g="${g}" aria-pressed="${g === gradeSel}">${g}</button>`).join("")}</div>
+            <div style="margin-top:16px"><button class="btn primary lg" id="dstart">診断テストをはじめる</button></div>
+          </div>` : `<div class="next-box">${nextActionHTML()}</div>`}
+      </section>
+      ${R && R.diag ? `<section class="card">
+        <div class="row" style="margin-bottom:10px"><h2 style="margin:0">診断の結果</h2><div class="spacer"></div><span class="small muted">${fmtDateTime(R.diag.at)}（${esc(R.grade)}）</span></div>
+        <div class="route-list">${RS.map((r) => {
+          const d = R.diag.byRs[r.code] || { c: 0, t: 0 }, it = R.items[r.code];
+          const st = !it ? "ok" : it.stage;
+          const label = { ok: "合格", review: "補充する", check: "確認する", done: "習得！" }[st];
+          const act = st === "review" ? `<button class="btn small-btn" data-lesson="${r.code}">補充する</button>` : st === "check" ? `<button class="btn small-btn primary" data-check="${r.code}">確認する</button>` : "";
+          return `<div class="rl-item ${st}"><div class="rl-main"><b>${esc(r.nick)}</b><span class="small muted">診断 ${d.c}/${d.t}${it && it.hist.length ? `・補充 ${it.hist.filter((h) => h.kind === "review").length}回` : ""}${it && it.missed && it.missed.length && st !== "done" ? `・解き直し ${(it.fixed || []).length}/${it.missed.length}問クリア` : ""}</span></div>
+            ${act || `<span class="rl-state">${label}</span>`}</div>`;
+        }).join("")}</div>
+      </section>` : ""}`;
+    let g = gradeSel;
+    $app.onclick = (e) => {
+      if (bindRouteButtons(e)) return;
+      const gb = e.target.closest("[data-g]");
+      if (gb) { g = gb.dataset.g; $app.querySelectorAll("[data-g]").forEach((x) => x.setAttribute("aria-pressed", x.dataset.g === g)); return; }
+      if (e.target.closest("#dstart")) startDiagnosis(g);
+    };
+  }
+
+  let lessonRs = null;
+  function viewLesson() {
+    setNav("home");
+    const R = getRoute();
+    if (!R || !lessonRs || !RS_MAP[lessonRs]) { location.hash = "#/route"; return; }
+    const r = RS_MAP[lessonRs], t = TIPS[lessonRs];
+    const it = R.items[lessonRs] || {};
+    const retry = retryTargets(lessonRs);
+    const refs = retry.length ? retry : (it.missed || []).map(qById).filter(Boolean);
+    const exUsed = new Set(it.missed || []);
+    const ex = (refs[0] && easierFor(refs[0], exUsed, R.grade))
+      || pickQs((q) => q.rs_code === lessonRs && q.difficulty === 1 && q.grade <= R.grade, 1, true)[0] || pickQs((q) => q.rs_code === lessonRs, 1, false)[0];
+    if (ex && R.items[lessonRs]) { R.items[lessonRs].exId = ex.id; save(); }
+    const nPlay = REVIEW_N + retry.length;
+    const ai = ex ? LETTERS.indexOf(ex.answer) : -1;
+    $app.innerHTML = `
+      <p class="result-title">補充：${esc(r.nick)}<span class="small muted">（${esc(r.no)} ${esc(r.name)}）</span></p>
+      <section class="card lesson">
+        <h1 class="lesson-h"><span class="hl">${esc(t.lead)}</span>コツ</h1>
+        <ol class="tips">${t.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
+      </section>
+      ${retry.length ? `<section class="card missed-card">
+        <div class="worked-h miss">まちがえた問題</div>
+        <ul class="missed-list">${retry.map((q) => `<li><span class="small muted">${esc(q.subject)}・${esc(q.grade)}・${esc(q.unit || q.field || "")}</span><br>${esc(q.question)}</li>`).join("")}</ul>
+        <p class="small muted">この問題に近い、易しい問題から練習します。最後にこの問題にもう一度挑戦します。</p>
+      </section>` : ""}
+      ${ex ? `<section class="card worked">
+        <div class="worked-h">例題で確かめよう</div>
+        <div class="passage ${ex.subject === "英語" && isEnglishText(ex.passage) ? "en" : ""}"><div class="passage-label">${passageLabel(ex.rs_code)}</div>${esc(ex.passage)}</div>
+        ${ex.note ? `<div class="note">${esc(ex.note)}</div>` : ""}
+        <div class="question">${esc(ex.question)}</div>
+        <div class="choices">${ex.choices.map((c, i) => `<div class="choice ${i === ai ? "correct" : "dim"}"><span class="key">${LETTERS[i]}</span><span class="txt ${i === ai ? "hl-on" : ""}">${esc(c)}</span></div>`).join("")}</div>
+        <div class="feedback ok"><div class="verdict">考え方</div>
+          <div class="basis"><b>根拠：</b>${esc(ex.explanation)}</div>
+          <p class="advice-point" style="margin:8px 0 0">${esc(tipFor(ex).point)}</p></div>
+      </section>` : ""}
+      <div class="row center-row">
+        <button class="btn primary lg" data-review="${lessonRs}">練習をはじめる（${REVIEW_N}問${retry.length ? `＋解き直し${retry.length}問` : ""}）</button>
+        <a class="btn ghost" href="#/route">ルートにもどる</a>
+      </div>
+      <p class="small muted center">易しい問題 → ふつうの問題${retry.length ? " → まちがえた問題の解き直し" : ""}の順に出ます。まちがえても、アドバイスを読んで次に生かそう。</p>`;
+    $app.onclick = (e) => { bindRouteButtons(e); };
+  }
+
+  function routeResultHTML(out, res) {
+    if (!out) return "";
+    if (out.kind === "diag") {
+      const w = out.weak || [];
+      return `<section class="card route-banner">
+        ${stepperHTML(w.length ? 1 : 3, !w.length)}
+        <h2>診断の結果</h2>
+        ${w.length ? `<p>補充するスキル：${w.map((c) => `<b class="pill">${esc(RS_MAP[c].nick)}</b>`).join(" ")}</p>
+          <p class="small muted">まずコツと例題を見てから、易しい問題で練習しよう。</p>
+          <button class="btn primary lg" data-lesson="${w[0]}">「${esc(RS_MAP[w[0]].nick)}」の補充をはじめる</button>`
+        : `<p>すべてのスキルで2問とも正解！ 長文読解やチャレンジで、さらに力をのばそう。</p><a class="btn primary" href="#/long">長文読解へ</a>`}
+      </section>`;
+    }
+    const r = RS_MAP[out.rs];
+    if (out.kind === "review") return `<section class="card route-banner">
+        ${stepperHTML(2)}
+        <h2>「${esc(r.nick)}」の補充おわり</h2>
+        ${out.retry && out.retry.length ? `<div class="retry-box"><div class="small"><b>まちがえた問題の解き直し</b></div>
+          <ul class="retry-list">${out.retry.map((x) => { const q = qById(x.id); return `<li class="${x.ok ? "ok" : "ng"}"><span class="mark ${x.ok ? "ok" : "ng"}">${x.ok ? "○" : "×"}</span><span>${esc(q ? q.question : x.id)}<br><b class="small">${x.ok ? "今回は正解できた！" : "まだ。根拠をもう一度読もう"}</b></span></li>`; }).join("")}</ul></div>` : ""}
+        <p class="small muted">次は、まだ解いていない問題で確認テスト。${CHECK_N}問中${PASS}問正解で「習得」です。${out.leftCount ? `（解き直しできなかった問題は、確認テストのあとにもう一度出ます）` : ""}</p>
+        <button class="btn primary lg" data-check="${out.rs}">確認テストを受ける</button>
+      </section>`;
+    if (out.kind === "check") {
+      const n = routeNext();
+      return `<section class="card route-banner ${out.pass ? "pass" : ""}">
+        ${stepperHTML(out.pass ? 3 : 1, out.pass)}
+        <h2>${out.pass ? `「${esc(r.nick)}」を習得！` : `「${esc(r.nick)}」はあと少し`}</h2>
+        <p class="small muted">${out.pass ? `確認テスト ${out.c}/${out.t}問 正解。` : `確認テスト ${out.c}/${out.t}問 正解（合格は${PASS}問）。もう一度コツを確かめて練習しよう。`}</p>
+        ${out.pass ? (n.done ? `<p>補充したスキルを、すべて習得しました。</p><a class="btn primary" href="#/route">学習ルートを見る</a>` : `<div class="next-box">${nextActionHTML()}</div>`)
+          : `<button class="btn primary lg" data-lesson="${out.rs}">もう一度補充する</button>`}
+      </section>`;
+    }
+    return "";
+  }
+  const KIND_LABEL = { diag: "診断", review: "補充", check: "確認", scaffold: "やさしい問題", retry: "再挑戦" };
+
   /* =========================================================
      データ読み込み
      ========================================================= */
@@ -239,8 +587,14 @@
         <div class="lv-row"><span class="lv-badge">Lv.${lv.L}</span><div class="xpbar"><span style="width:${lv.pct}%"></span></div><span class="small">${xp} XP</span></div>
       </section>
 
+      <section class="card route-card">
+        <div class="row" style="margin-bottom:6px"><h2 style="margin:0">学習ルート</h2><div class="spacer"></div><a class="small" href="#/route">くわしく見る</a></div>
+        ${(() => { const n = routeNext(); return stepperHTML(n.step, n.done); })()}
+        <div class="next-box">${nextActionHTML()}</div>
+      </section>
+
       <button class="quick" id="quick">
-        <span class="quick-main"><b>10問チャレンジ</b><span>全教科からランダムに出題</span></span>
+        <span class="quick-main"><b>10問チャレンジ</b><span>自由練習：全教科からランダムに出題</span></span>
         <span class="quick-go" aria-hidden="true">スタート</span>
       </button>
 
@@ -294,6 +648,7 @@
     document.getElementById("setupbox").addEventListener("toggle", (e) => { setup.opened = e.target.open; });
 
     $app.onclick = (e) => {
+      if (bindRouteButtons(e)) return;
       const t = e.target.closest("button");
       if (!t) return;
       if (t.id === "quick") { const q = defaultSetup(); return startFromSetup(q); }
@@ -312,8 +667,9 @@
   /* =========================================================
      画面2: 演習
      ========================================================= */
-  function startSession(questions, regen) {
-    session = { questions, index: 0, results: [], startedAt: Date.now(), answered: false, regen, saved: false, before: snapshot() };
+  function startSession(questions, regen, meta) {
+    if (!questions || !questions.length) return;
+    session = { questions, index: 0, results: [], startedAt: Date.now(), answered: false, regen, saved: false, before: snapshot(), meta: meta || null };
     location.hash = "#/quiz";
     if (location.hash === "#/quiz") viewQuiz();
   }
@@ -329,6 +685,7 @@
     $app.innerHTML = `
       <div class="quiz-head">
         <div class="progress" aria-hidden="true"><span style="width:${(session.index / total) * 100}%"></span></div>
+        ${session.meta && KIND_LABEL[session.meta.kind] ? `<span class="kind-pill k-${session.meta.kind}">${KIND_LABEL[session.meta.kind]}</span>` : ""}
         <div class="qnum">${session.index + 1} / ${total}</div>
         <button class="btn ghost" id="quit">終了</button>
       </div>
@@ -337,6 +694,7 @@
           <span class="tag" title="${esc(rs.no)} ${esc(rs.name)}">${esc(rs.nick)}</span>
           <span class="tag plain">${esc(q.subject)}・${esc(q.grade)}</span>
           <span class="tag plain">${esc(q.unit || q.field || "")}</span>
+          ${session.meta && session.meta.retryIds && session.meta.retryIds.includes(q.id) ? `<span class="tag retry">まちがえた問題の解き直し</span>` : ""}
         </div>
         <div class="passage ${en ? "en" : ""}"><div class="passage-label">${passageLabel(q.rs_code)}</div>${esc(q.passage)}</div>
         ${q.note ? `<div class="note">${esc(q.note)}</div>` : ""}
@@ -394,6 +752,7 @@
       <div class="feedback ${ok ? "ok" : "ng"}" role="status">
         <div class="verdict">${ok ? "正解！" : "不正解"}<span class="xp-chip">+${ok ? XP_OK : XP_NG} XP</span>${ok && combo >= 2 ? `<span class="combo">${combo}問れんぞく正解</span>` : ""}<span class="muted small" style="font-weight:400;margin-left:auto">正答は ${q.answer}</span></div>
         <div class="basis"><b>根拠：</b>${esc(q.explanation || "（根拠は未登録です）")}</div>
+        ${adviceHTML(q, ok)}
       </div>`;
     const nb = document.getElementById("next");
     nb.hidden = false; nb.focus({ preventScroll: true });
@@ -411,9 +770,11 @@
       log().sessions.push({
         at: session.startedAt, end: Date.now(), n: res.length, ok: res.filter((r) => r.ok).length,
         ms: res.reduce((s, r) => s + r.ms, 0), subj: [...new Set(res.map((r) => r.subject))],
+        ...(session.meta ? { kind: session.meta.kind, rs: session.meta.rs } : {}),
       });
       save();
       session.saved = true;
+      session.routeOut = session.meta && /^(diag|review|check)$/.test(session.meta.kind) && res.length ? applyRoute(session.meta, res) : null;
     }
     session.done = true;
     location.hash = "#/result";
@@ -453,7 +814,29 @@
     const totalMs = res.reduce((s, r) => s + r.ms, 0);
 
     $app.innerHTML = `
+      ${session.meta && KIND_LABEL[session.meta.kind] ? `<p class="result-title">${KIND_LABEL[session.meta.kind]}${session.meta.rs ? `：${esc(RS_MAP[session.meta.rs].nick)}` : ""}の結果</p>` : ""}
+      ${routeResultHTML(session.routeOut, res)}
       ${rewardHTML(session.before || { xp: 0, badges: new Set() }, correct, res.length)}
+      ${session.meta && session.meta.kind === "scaffold" && session.meta.originals && session.meta.originals.length ? `<section class="card route-banner">
+        ${stepperHTML(2)}
+        <h2>やさしい問題で練習しました</h2>
+        <p class="small muted">考え方を確かめたら、さっきまちがえた問題にもう一度挑戦しよう。</p>
+        <button class="btn primary lg" id="retry-orig">さっきまちがえた問題にもう一度（${session.meta.originals.length}問）</button>
+      </section>` : ""}
+      ${!session.routeOut && wrong.length && (!session.meta || session.meta.kind !== "scaffold") ? (() => {
+        const wq = wrong.map((r) => qById[r.id]);
+        const rsCount = {}; wq.forEach((q) => { rsCount[q.rs_code] = (rsCount[q.rs_code] || 0) + 1; });
+        const top = Object.keys(rsCount).sort((a, b) => rsCount[b] - rsCount[a]).slice(0, 2);
+        const sc = scaffoldSet(wq);
+        return `<section class="card advice-card">
+          <h2>今回のふり返りアドバイス</h2>
+          ${top.map((c) => `<div class="adv-item"><b>${esc(RS_MAP[c].nick)}</b>（${rsCount[c]}問まちがい）<p>${esc(TIPS[c].check)}</p></div>`).join("")}
+          ${sc.length ? `<div class="scaf">
+            <div class="small muted">まちがえた問題と同じスキルで、もう少し易しい問題を用意しました。</div>
+            <div class="row" style="margin-top:8px"><button class="btn primary" id="scaffold">やさしい問題で練習（${sc.length}問）→ もう一度挑戦</button></div>
+          </div>` : ""}
+        </section>`;
+      })() : ""}
       <p class="small muted center">かかった時間 ${fmtSec(totalMs)}（1問平均 ${fmtSec(totalMs / Math.max(1, res.length))}）</p>
       <section class="card">
         <h2>スキル別の正答率</h2>
@@ -475,15 +858,21 @@
         }).join("")}
       </section>
       <div class="row">
-        ${wrong.length ? `<button class="btn primary" id="retry">まちがえた問題をもう一度（${wrong.length}問）</button>` : ""}
-        <button class="btn" id="again">同じ条件で新しく解く</button>
+        ${wrong.length && !session.routeOut ? `<button class="btn" id="retry">まちがえた問題をもう一度（${wrong.length}問）</button>` : ""}
+        ${session.regen ? `<button class="btn" id="again">同じ条件で新しく解く</button>` : `<a class="btn" href="#/">ホームへ</a>`}
         <a class="btn ghost" href="#/dashboard">ダッシュボードを見る</a>
       </div>`;
 
+    const wrongQs = wrong.map((r) => qById[r.id]);
+    const scaffoldQs = !session.routeOut && wrong.length ? null : [];
     $app.onclick = (e) => {
-      if (e.target.closest("#retry")) startSession(shuffle(wrong.map((r) => qById[r.id])), session.regen);
+      if (bindRouteButtons(e)) return;
+      if (e.target.closest("#retry")) startSession(shuffle(wrongQs), session.regen, { kind: "retry" });
+      else if (e.target.closest("#retry-orig")) { const ids = session.meta.originals; startSession(ids.map((id) => Q_BY_ID[id]).filter(Boolean), null, { kind: "retry" }); }
+      else if (e.target.closest("#scaffold")) startSession(scaffoldSet(wrongQs), null, { kind: "scaffold", originals: wrongQs.map((q) => q.id) });
       else if (e.target.closest("#again")) { if (session.regen) session.regen(); else location.hash = "#/"; }
     };
+    void scaffoldQs;
   }
 
 
@@ -658,6 +1047,7 @@
         <div class="basis"><b>根拠：</b>${esc(q.explanation || "")}</div>
         ${L.mark ? `<div class="ev-quote"><span class="small muted">第${L.mark.para}段落</span>${L.mark.text ? `「${esc(L.mark.text)}」` : ""}</div>
         <button class="btn small-btn" id="lshow">本文で根拠を確かめる</button>` : ""}
+        ${adviceHTML(q, ok)}
       </div>`;
     if (!isNarrow()) showEvidence();
     const nb = document.getElementById("lnext");
@@ -731,12 +1121,23 @@
       <section class="card">
         <details><summary class="small"><b>本文をもう一度読む</b></summary><div class="lr-body" style="margin-top:10px">${passageHTML(p, null)}</div></details>
       </section>
+      ${res.some((r) => !r.ok) ? (() => {
+        const wq = res.filter((r) => !r.ok).map((r) => ({ ...qById[r.id], subject: "国語", grade: p.grade, difficulty: 2 }));
+        const sc = scaffoldSet(wq, p.grade);
+        return `<section class="card advice-card">
+          <h2>今回のふり返りアドバイス</h2>
+          ${[...new Set(wq.map((q) => q.rs_code))].slice(0, 2).map((c) => `<div class="adv-item"><b>${esc(RS_MAP[c].nick)}</b><p>${esc(TIPS[c].check)}</p></div>`).join("")}
+          ${sc.length ? `<div class="small muted">まちがえた設問と同じスキルの、短くて易しい問題で練習できます。</div>
+          <div class="row" style="margin-top:8px"><button class="btn primary" id="lscaf">やさしい問題で練習（${sc.length}問）</button></div>` : ""}
+        </section>`;
+      })() : ""}
       <div class="row">
         ${nextP ? `<button class="btn primary" id="lnextp">次の文章へ（${esc(nextP.title)}）</button>` : ""}
         <button class="btn" id="lagain">この文章をもう一度解く</button>
         <a class="btn ghost" href="#/long">文章の一覧</a>
       </div>`;
     $app.onclick = (e) => {
+      if (e.target.closest("#lscaf")) { const wq = res.filter((r) => !r.ok).map((r) => ({ ...qById[r.id], subject: "国語", grade: p.grade, difficulty: 2 })); return startSession(scaffoldSet(wq, p.grade), null, { kind: "scaffold" }); }
       if (e.target.closest("#lagain")) startLong(p);
       else if (e.target.closest("#lnextp")) startLong(nextP);
     };
@@ -929,7 +1330,7 @@
         <h2>演習の記録<span class="muted small">（${sessions.length}回）</span></h2>
         ${sessions.length ? `<div class="scroll"><table class="sess-table">
           <thead><tr><th>日時</th><th>教科</th><th class="num">正解</th><th class="num">正答率</th><th class="num opt">時間</th></tr></thead>
-          <tbody>${sessions.slice(0, 100).map((s, i) => `<tr ${i >= 10 ? 'class="more" hidden' : ""}><td class="nw">${fmtDateTime(s.at)}</td><td class="subj">${s.mode === "L" ? `長文「${esc(s.title || "")}」` : esc(s.subj.join("・"))}</td><td class="num">${s.ok}/${s.n}</td><td class="num">${pct(s.ok, s.n)}%</td><td class="num opt">${fmtSec(s.ms || 0)}</td></tr>`).join("")}</tbody>
+          <tbody>${sessions.slice(0, 100).map((s, i) => `<tr ${i >= 10 ? 'class="more" hidden' : ""}><td class="nw">${fmtDateTime(s.at)}</td><td class="subj">${s.mode === "L" ? `長文「${esc(s.title || "")}」` : `${s.kind && KIND_LABEL[s.kind] ? `<span class="kind-pill k-${s.kind}">${KIND_LABEL[s.kind]}${s.rs && RS_MAP[s.rs] ? "：" + esc(RS_MAP[s.rs].nick) : ""}</span> ` : ""}${esc(s.subj.join("・"))}`}</td><td class="num">${s.ok}/${s.n}</td><td class="num">${pct(s.ok, s.n)}%</td><td class="num opt">${fmtSec(s.ms || 0)}</td></tr>`).join("")}</tbody>
         </table></div>${sessions.length > 10 ? `<button class="btn ghost small-btn" id="more">すべて表示（${Math.min(100, sessions.length)}回）</button>` : ""}` : `<div class="empty">この期間の演習はありません</div>`}
       </section>`}
 
@@ -1226,6 +1627,8 @@
     else if (h === "#/result") viewResult();
     else if (h === "#/dashboard" || h === "#/history") viewDashboard();
     else if (h === "#/browse") viewBrowse();
+    else if (h === "#/route") viewRoute();
+    else if (h === "#/lesson") viewLesson();
     else if (h === "#/long") viewLongList();
     else if (h === "#/long/play") viewLongPlay();
     else if (h === "#/long/result") viewLongResult();

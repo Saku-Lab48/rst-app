@@ -443,8 +443,81 @@ mark.ev.flash, .para.flash { animation: evflash 1.2s ease-out 1; }
   .read-stats b { font-size: 16px; }
 }
 
+
+/* ---------- 学習ルート：診断 → 補充 → 確認 ---------- */
+.stepper { list-style: none; display: flex; margin: 6px 0 14px; padding: 0; gap: 0; }
+.stepper li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; font-size: 13px; font-weight: 800; color: var(--muted); }
+.stepper li + li::before { content: ""; position: absolute; top: 15px; right: 50%; width: 100%; height: 3px; background: var(--line); z-index: 0; }
+.stepper li.done + li::before, .stepper li.now::before { background: var(--hl-mint); }
+.st-dot { position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 900;
+  background: var(--paper); border: 3px solid var(--line); color: var(--muted); }
+.stepper li.now .st-dot { border-color: var(--pen); color: var(--pen); box-shadow: 0 0 0 4px var(--pen-soft); }
+.stepper li.now { color: var(--ink); }
+.stepper li.done .st-dot { background: var(--hl-mint); border-color: var(--hl-mint); color: var(--ink); }
+.stepper li.done { color: var(--ink-2); }
+.next-box { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.route-card { border-color: var(--pen); box-shadow: 0 3px 0 var(--pen-soft); }
+.route-banner { text-align: center; border-color: var(--pen); }
+.route-banner h2 { margin: 4px 0 6px; font-size: 20px; }
+.route-banner.pass { border-color: var(--good); background: color-mix(in srgb, var(--hl-mint) 14%, var(--paper)); }
+.pill { display: inline-block; background: var(--hl); border-radius: 999px; padding: 0 10px; margin: 2px; }
+.diag-start { text-align: center; }
+.diag-start .field-label { justify-content: center; }
+.diag-start .chips { justify-content: center; }
+.route-list { display: grid; gap: 8px; }
+.rl-item { display: flex; align-items: center; gap: 10px; border: 2px solid var(--line); border-radius: 14px; padding: 8px 12px; }
+.rl-main { flex: 1; display: flex; flex-direction: column; line-height: 1.4; }
+.rl-state { font-size: 12px; font-weight: 900; border-radius: 999px; padding: 2px 10px; background: var(--bg); color: var(--muted); white-space: nowrap; }
+.rl-item.review .rl-state { background: var(--hl-pink); color: var(--on-dark); }
+.rl-item.check .rl-state { background: var(--hl); color: #1c2758; }
+.rl-item.done .rl-state { background: var(--hl-mint); color: #1c2758; }
+.rl-item.done { border-color: var(--hl-mint); }
+.kind-pill { flex: none; font-size: 12px; font-weight: 900; border-radius: 999px; padding: 1px 10px; white-space: nowrap; background: var(--bg); color: var(--ink-2); border: 2px solid var(--line); }
+.kind-pill.k-diag { background: var(--pen-soft); border-color: var(--pen-soft); color: var(--pen); }
+.kind-pill.k-review, .kind-pill.k-scaffold { background: color-mix(in srgb, var(--hl-pink) 30%, var(--paper)); border-color: transparent; color: var(--ink); }
+.kind-pill.k-check, .kind-pill.k-retry { background: color-mix(in srgb, var(--hl) 55%, var(--paper)); border-color: transparent; color: var(--ink); }
+.sess-table .kind-pill { font-size: 11px; padding: 0 8px; }
+
+/* ---------- コツと例題 ---------- */
+.lesson-h { font-size: 22px; margin-bottom: 12px; }
+.lesson-h .hl { margin-right: 4px; }
+.tips { margin: 0; padding: 0; list-style: none; counter-reset: tip; display: grid; gap: 10px; }
+.tips li { counter-increment: tip; position: relative; padding: 10px 12px 10px 48px; background: var(--bg); border-radius: 12px; font-weight: 700; line-height: 1.6; }
+.tips li::before { content: counter(tip); position: absolute; left: 12px; top: 10px; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--pen); color: var(--on-dark); display: grid; place-items: center; font-weight: 900; font-size: 14px; }
+.worked-h { display: inline-block; font-weight: 900; background: var(--hl-mint); border-radius: 8px; padding: 2px 10px; margin-bottom: 12px; }
+.worked .choice { cursor: default; box-shadow: none; }
+.center-row { justify-content: center; margin-bottom: 6px; }
+
+/* ---------- アドバイス ---------- */
+.advice { margin-top: 12px; border-radius: 12px; padding: 10px 12px; background: var(--paper); border: 2px dashed var(--hl-pink); }
+.advice-h { font-weight: 900; font-size: 14px; color: var(--ink); margin-bottom: 2px; }
+.advice-h::before { content: "ヒント"; display: inline-block; background: var(--hl-pink); color: var(--on-dark); font-size: 11px; border-radius: 6px; padding: 0 6px; margin-right: 6px; vertical-align: 1px; }
+.advice-point { margin: 4px 0; font-size: 15px; font-weight: 700; line-height: 1.7; }
+.advice-check { margin: 4px 0 0; font-size: 13px; color: var(--ink-2); }
+.advice.ok { border: 2px dashed var(--good); padding: 6px 12px; }
+.advice.ok summary { cursor: pointer; font-weight: 800; font-size: 13px; color: var(--good); }
+.advice.ok p { margin: 6px 0 2px; font-size: 14px; }
+.advice-card { border-color: var(--hl-pink); }
+.adv-item { padding: 8px 0; border-bottom: 2px dashed var(--line); }
+.adv-item:last-of-type { border-bottom: none; }
+.adv-item p { margin: 4px 0 0; font-size: 14px; color: var(--ink-2); }
+.scaf { margin-top: 8px; padding-top: 10px; border-top: 2px dashed var(--line); }
+.quiz-head .kind-pill { order: -1; }
+
 /* 動きを減らす設定の人には、アニメーションを止める */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .confetti { display: none; }
 }
+
+/* まちがえた問題の解き直し */
+.tag.retry { background: var(--hl-pink); color: #1a1f3d; border-color: transparent; font-weight: 700; }
+.missed-card .worked-h.miss { background: var(--hl-pink); color: #1a1f3d; }
+.missed-list { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
+.missed-list li { border: 1.5px dashed var(--line); border-radius: 10px; padding: 10px 12px; line-height: 1.6; }
+.retry-box { text-align: left; margin: 10px 0 6px; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.retry-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.retry-list li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.55; }
+.retry-list li.ok b { color: var(--good); }
+.retry-list li.ng b { color: var(--bad); }
