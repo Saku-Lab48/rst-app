@@ -271,3 +271,60 @@ label.btn { display: inline-block; }
   .sess-table { font-size: 13px; }
   .sess-table td.subj { font-size: 12px; }
 }
+
+/* ---------- 長文読解 ---------- */
+.topnav a[hidden] { display: none; }
+.long-promo { display: flex; align-items: center; gap: 14px; text-decoration: none; color: var(--ink); padding: 16px 18px; border-color: var(--accent); }
+.long-promo:hover { background: var(--accent-soft); }
+.lp-badge { flex: none; font-size: 12px; font-weight: 700; color: var(--surface); background: var(--accent); border-radius: 8px; padding: 6px 8px; }
+.lp-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.lp-body b { font-size: 17px; }
+.lp-arrow { font-size: 28px; color: var(--accent); line-height: 1; }
+.long-list { display: grid; gap: 10px; }
+.long-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--ink); margin: 0; padding: 14px 16px; }
+.long-item:hover { border-color: var(--accent); }
+.li-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.li-title { font-weight: 700; font-size: 16px; }
+.li-main .tags { margin: 0; }
+.li-status { flex: none; min-width: 64px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.li-status b { font-size: 16px; color: var(--ink); }
+.li-status.done b { color: var(--good); }
+
+body[data-view="longplay"] main { max-width: 1240px; }
+.lr-tabs { display: none; }
+.lr-wrap { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.lr-text { position: sticky; top: 12px; max-height: calc(100vh - 120px); overflow-y: auto; margin-bottom: 0; }
+.lr-q { margin-bottom: 0; }
+.lr-title { font-family: var(--font-read); font-size: 21px; font-weight: 700; margin-bottom: 8px; }
+.lr-body { font-family: var(--font-read); font-size: 17px; line-height: 2; }
+.lr-body .para { margin: 0 0 .9em; text-indent: 0; padding-left: 2.1em; position: relative; border-radius: 6px; transition: background .3s; }
+.lr-body .para.has-ev { background: var(--accent-soft); }
+.pno { position: absolute; left: 0; top: .28em; width: 1.55em; height: 1.55em; border-radius: 50%; border: 1px solid var(--line);
+  font-family: var(--font); font-size: 11px; line-height: 1.45em; text-align: center; color: var(--muted); background: var(--surface); }
+mark.ev { background: color-mix(in srgb, #f2c94c 55%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+mark.ev.flash, .para.flash { animation: evflash 1.2s ease-out 1; }
+@keyframes evflash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, #f2c94c 90%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+.lr-readdone { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 14px; text-align: center; display: grid; gap: 6px; justify-items: center; }
+.lr-intro { text-align: center; padding: 18px 6px; }
+.lr-intro p { margin: 6px 0 14px; }
+.ev-quote { margin: 8px 0; padding: 8px 12px; border-left: 3px solid #e0b43a; background: var(--bg); border-radius: 0 8px 8px 0; font-family: var(--font-read); font-size: 15px; }
+.ev-quote .small { display: block; font-family: var(--font); }
+.sm-only-inline, .sm-only-block { display: none; }
+.kpis-in { margin-bottom: 0; }
+.kpis-in .kpi { box-shadow: none; }
+
+@media (max-width: 899px) {
+  .lr-tabs { display: flex; position: sticky; top: var(--topbar-h, 54px); z-index: 5; gap: 6px; margin: 0 0 12px; padding: 6px; background: var(--bg); }
+  .lr-tabs button { flex: 1; font: inherit; font-size: 15px; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+  .lr-tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 700; }
+  .lr-wrap { display: block; }
+  .lr-text { position: static; max-height: none; overflow: visible; }
+  .lr-wrap[data-tab="text"] .lr-q, .lr-wrap[data-tab="q"] .lr-text { display: none; }
+  .sm-only-inline { display: inline-flex; }
+  .sm-only-block { display: block; margin: 12px auto 0; }
+  .lr-body { font-size: 17px; }
+}
+@media (max-width: 520px) {
+  .lr-body .para { padding-left: 1.9em; }
+  .long-item { padding: 12px 14px; }
+}

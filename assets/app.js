@@ -23,6 +23,8 @@
   const $app = document.getElementById("app");
   let DB = [];
   let Q_BY_ID = {};
+  let PASSAGES = [];   // 長文読解
+  let lsession = null; // 長文読解の進行状態
   let session = null;
   let lastSetup = null;
 
@@ -96,7 +98,7 @@
      データ読み込み
      ========================================================= */
   async function loadData() {
-    if (Array.isArray(window.RST_EMBEDDED_DATA)) return { items: window.RST_EMBEDDED_DATA, info: "埋め込みデータ" };
+    if (Array.isArray(window.RST_EMBEDDED_DATA)) return { items: window.RST_EMBEDDED_DATA, passages: window.RST_EMBEDDED_PASSAGES || [], info: "埋め込みデータ" };
     const res = await fetch("data/manifest.json", { cache: "no-store" });
     if (!res.ok) throw new Error("data/manifest.json が見つかりません");
     const manifest = await res.json();
@@ -107,8 +109,13 @@
     }));
     const seen = new Set(); const items = [];
     lists.flat().forEach((q) => { if (!seen.has(q.id)) { seen.add(q.id); items.push(q); } });
+    let passages = [];
+    if (manifest.passages && manifest.passages.path) {
+      try { const r = await fetch(manifest.passages.path, { cache: "no-store" }); if (r.ok) passages = await r.json(); }
+      catch (e) { console.warn("長文データを読み込めませんでした", e); }
+    }
     const d = manifest.generated_at ? new Date(manifest.generated_at) : null;
-    return { items, info: `データ更新: ${d ? d.toLocaleString("ja-JP") : "-"}／バッチ ${manifest.files.map((f) => f.batch).join(", ")}` };
+    return { items, passages, info: `データ更新: ${d ? d.toLocaleDateString("ja-JP") : "-"}` };
   }
 
   /* =========================================================
@@ -149,6 +156,7 @@
     $app.innerHTML = `
       <div class="row" style="margin-bottom:4px"><h1>リーディングスキル演習</h1></div>
       <p class="lead">教科書に出てくるような文章を、正確に読み取れるかを確かめます。<br class="sp-hide">学習者：<a href="#/dashboard" class="who-link"><b>${esc(learner().name)}</b></a>（ダッシュボードで切りかえ）</p>
+
       <section class="card">
         ${chipGroup("教科", "subjects", SUBJECTS)}
         ${chipGroup("学年", "grades", GRADES)}
@@ -166,6 +174,10 @@
           <button class="btn primary lg" id="start">スタート</button>
         </div>
       </section>
+      ${PASSAGES.length ? `<a class="card long-promo" href="#/long">
+        <span class="lp-badge">国語</span>
+        <span class="lp-body"><b>長文読解</b><span class="small muted">600〜800字の文章を読んで、4〜5問に答えます（${PASSAGES.length}文章）</span></span>
+        <span class="lp-arrow" aria-hidden="true">›</span></a>` : ""}
       <section class="card">
         <h2>7つのリーディングスキル</h2>
         <div class="small">${RS.map((r) => `<div><b>${r.no} ${r.name}</b> <span class="muted">— ${r.desc}</span></div>`).join("")}</div>
@@ -375,10 +387,267 @@
     };
   }
 
+
+  /* =========================================================
+     画面: 長文読解（国語）
+     ========================================================= */
+  const GENRES = ["説明文", "論説文", "小説", "随筆"];
+  const longFilter = { grades: new Set(GRADES), genres: new Set(GENRES) };
+  const isNarrow = () => window.matchMedia("(max-width: 899px)").matches;
+
+  function lastLongSession(pid) {
+    const s = log().sessions.filter((x) => x.mode === "L" && x.p === pid);
+    return s.length ? s[s.length - 1] : null;
+  }
+
+  function viewLongList() {
+    setNav("long");
+    if (!PASSAGES.length) { location.hash = "#/"; return; }
+    const genres = GENRES.concat([...new Set(PASSAGES.map((p) => p.genre).filter((g) => g && !GENRES.includes(g)))]);
+    genres.forEach((g) => { if (!longFilter.genres.has(g) && !viewLongList.init) longFilter.genres.add(g); });
+    viewLongList.init = true;
+    const chips = (key, vals) => vals.map((v) => `<button class="chip" data-lf="${key}" data-val="${esc(v)}" aria-pressed="${longFilter[key].has(v)}">${esc(v)}<span class="count">${PASSAGES.filter((p) => (key === "grades" ? p.grade : p.genre) === v).length}</span></button>`).join("");
+    const list = PASSAGES.filter((p) => longFilter.grades.has(p.grade) && longFilter.genres.has(p.genre));
+    $app.innerHTML = `
+      <h1>長文読解</h1>
+      <p class="lead">600〜800字の文章を読んで、4〜5問に答えます。本文はいつでも読み返せます。答えたあと、根拠になる部分が本文の中で示されます。</p>
+      <section class="card">
+        <div class="field-group"><div class="field-label">学年</div><div class="chips">${chips("grades", GRADES)}</div></div>
+        <div class="field-group"><div class="field-label">ジャンル</div><div class="chips">${chips("genres", genres)}</div></div>
+      </section>
+      <div class="long-list">${list.map((p) => {
+        const last = lastLongSession(p.id);
+        return `<button class="card long-item" data-pid="${esc(p.id)}">
+          <span class="li-main"><span class="li-title">${esc(p.title)}</span>
+            <span class="tags"><span class="tag">${esc(p.genre || "文章")}</span><span class="tag plain">${esc(p.grade)}</span><span class="tag plain">${p.chars || p.paras.join("").length}字・${p.questions.length}問</span></span></span>
+          <span class="li-status ${last ? (last.ok === last.n ? "done" : "tried") : ""}">${last ? `前回<br><b>${last.ok}/${last.n}</b>` : "未挑戦"}</span>
+        </button>`;
+      }).join("") || `<div class="card empty">条件に合う文章がありません</div>`}</div>`;
+    $app.onclick = (e) => {
+      const c = e.target.closest("[data-lf]");
+      if (c) { const s = longFilter[c.dataset.lf]; s.has(c.dataset.val) ? s.delete(c.dataset.val) : s.add(c.dataset.val); return viewLongList(); }
+      const it = e.target.closest("[data-pid]");
+      if (it) startLong(PASSAGES.find((p) => p.id === it.dataset.pid));
+    };
+  }
+
+  function startLong(p) {
+    if (!p) return;
+    lsession = { p, phase: "read", qi: 0, results: [], startedAt: Date.now(), readStart: Date.now(), readMs: 0,
+      tab: "text", answered: false, saved: false, done: false, mark: null };
+    location.hash = "#/long/play";
+    if (location.hash === "#/long/play") viewLongPlay();
+  }
+
+  function passageHTML(p, mark) {
+    return p.paras.map((t, i) => {
+      let h = esc(t);
+      if (mark && mark.para === i + 1 && mark.text) {
+        const e = esc(mark.text), k = h.indexOf(e);
+        if (k >= 0) h = h.slice(0, k) + `<mark class="ev" id="ev-mark">${e}</mark>` + h.slice(k + e.length);
+      }
+      return `<p class="para ${mark && mark.para === i + 1 ? "has-ev" : ""}" id="para-${i + 1}"><span class="pno" aria-label="第${i + 1}段落">${i + 1}</span>${h}</p>`;
+    }).join("");
+  }
+
+  function setLongTab(tab) {
+    lsession.tab = tab;
+    const w = document.getElementById("lr-wrap");
+    if (w) w.dataset.tab = tab;
+    $app.querySelectorAll("[data-ltab]").forEach((b) => b.setAttribute("aria-selected", b.dataset.ltab === tab));
+    if (isNarrow()) window.scrollTo({ top: 0 });
+  }
+
+  function viewLongPlay() {
+    setNav("long");
+    const L = lsession;
+    if (!L || L.done) { location.hash = "#/long"; return; }
+    const p = L.p, n = p.questions.length;
+    const reading = L.phase === "read";
+    const q = reading ? null : p.questions[L.qi];
+    $app.innerHTML = `
+      <div class="quiz-head">
+        <div class="progress" aria-hidden="true"><span style="width:${reading ? 0 : (L.qi / n) * 100}%"></span></div>
+        <div class="qnum">${reading ? "本文を読む" : `設問 ${L.qi + 1} / ${n}`}</div>
+        <button class="btn ghost" id="lquit">終了</button>
+      </div>
+      <div class="lr-tabs" role="tablist" aria-label="表示の切りかえ">
+        <button role="tab" data-ltab="text">本文</button>
+        <button role="tab" data-ltab="q">${reading ? "設問" : `設問 ${L.qi + 1}/${n}`}</button>
+      </div>
+      <div class="lr-wrap" id="lr-wrap" data-tab="${L.tab}">
+        <article class="card lr-text" id="lr-text" aria-label="本文">
+          <div class="lr-title">${esc(p.title)}</div>
+          <div class="tags"><span class="tag">${esc(p.genre || "文章")}</span><span class="tag plain">国語・${esc(p.grade)}</span><span class="tag plain">${p.chars || p.paras.join("").length}字</span></div>
+          <div class="lr-body" id="lr-body">${passageHTML(p, L.mark)}</div>
+          ${reading ? `<div class="lr-readdone"><button class="btn primary lg" id="lgo">読み終えた・設問へ</button><div class="small muted">ここまでの時間が「読む時間」として記録されます</div></div>` : `<button class="btn ghost lr-back sm-only-block" data-ltab="q">設問にもどる</button>`}
+        </article>
+        <article class="card lr-q" id="lr-q" aria-label="設問">
+          ${reading ? `<div class="lr-intro">
+              <b>まず本文を読みましょう。</b>
+              <p class="small muted">全${n}問。設問に答えている間も、本文はいつでも読み返せます。</p>
+              <button class="btn primary" id="lgo2">読み終えた・設問へ</button>
+            </div>` : `
+            <div class="tags">
+              <span class="tag">${esc(RS_MAP[q.rs_code].no)} ${esc(RS_MAP[q.rs_code].name)}</span>
+              ${q.kind ? `<span class="tag plain">${esc(q.kind)}</span>` : ""}
+            </div>
+            <div class="question">${esc(q.question)}</div>
+            <div class="choices" role="group" aria-label="選択肢">
+              ${q.choices.map((c, i) => `<button class="choice" data-i="${i}"><span class="key">${LETTERS[i]}</span><span class="txt">${esc(c)}</span></button>`).join("")}
+            </div>
+            <div id="lfb"></div>
+            <div class="quiz-foot">
+              <button class="btn ghost sm-only-inline" data-ltab="text">本文を見る</button>
+              <span class="kbd-hint">1〜4 または A〜D で解答、Enter で次へ</span>
+              <button class="btn primary" id="lnext" hidden>${L.qi + 1 < n ? "次の設問へ" : "結果を見る"}</button>
+            </div>`}
+        </article>
+      </div>`;
+    setLongTab(L.tab);
+    L.answered = false;
+    if (!reading) L.qStart = Date.now();
+    $app.onclick = (e) => {
+      const t = e.target.closest("[data-ltab]");
+      if (t) return setLongTab(t.dataset.ltab);
+      if (e.target.closest("#lgo") || e.target.closest("#lgo2")) {
+        L.readMs = Math.min(Date.now() - L.readStart, 60 * 60000);
+        L.phase = "q"; L.qi = 0; L.tab = "q"; L.mark = null;
+        return viewLongPlay();
+      }
+      const ch = e.target.closest(".choice");
+      if (ch && !L.answered && L.phase === "q") return longAnswer(Number(ch.dataset.i));
+      if (e.target.closest("#lnext")) return longNext();
+      if (e.target.closest("#lshow")) return showEvidence();
+      if (e.target.closest("#lquit")) {
+        if (!L.results.length) { lsession = null; location.hash = "#/long"; }
+        else longFinish();
+      }
+    };
+  }
+
+  function showEvidence() {
+    setLongTab("text");
+    const m = document.getElementById("ev-mark") || document.getElementById("para-" + (lsession.mark && lsession.mark.para));
+    if (!m) return;
+    const box = document.getElementById("lr-text");
+    if (!isNarrow() && box && box.scrollHeight > box.clientHeight) box.scrollTo({ top: m.offsetTop - 80, behavior: "smooth" });
+    else m.scrollIntoView({ block: "center", behavior: "smooth" });
+    m.classList.remove("flash"); void m.offsetWidth; m.classList.add("flash");
+  }
+
+  function longAnswer(i) {
+    const L = lsession, p = L.p, q = p.questions[L.qi];
+    const correctIdx = LETTERS.indexOf(q.answer);
+    const ok = i === correctIdx;
+    const now = Date.now();
+    const ms = Math.min(now - L.qStart, 30 * 60000);
+    L.answered = true;
+    L.results.push({ id: q.id, rs: q.rs_code, chosen: LETTERS[i], ok, ms });
+    log().answers.push({ t: now, q: q.id, s: p.subject || "国語", g: p.grade, rs: q.rs_code, ok: ok ? 1 : 0, c: LETTERS[i], ms, m: "L", p: p.id });
+    save();
+    $app.querySelectorAll(".choice").forEach((b, k) => {
+      b.disabled = true;
+      if (k === correctIdx) b.classList.add("correct"); else if (k === i) b.classList.add("wrong"); else b.classList.add("dim");
+    });
+    L.mark = q.evidence ? { para: q.evidence_para, text: q.evidence } : (q.evidence_para ? { para: q.evidence_para, text: "" } : null);
+    document.getElementById("lr-body").innerHTML = passageHTML(p, L.mark);
+    document.getElementById("lfb").innerHTML = `
+      <div class="feedback ${ok ? "ok" : "ng"}" role="status">
+        <div class="verdict">${ok ? "正解" : "不正解"}<span class="muted small" style="font-weight:400">正答は ${q.answer}</span></div>
+        <div class="basis"><b>根拠：</b>${esc(q.explanation || "")}</div>
+        ${L.mark ? `<div class="ev-quote"><span class="small muted">第${L.mark.para}段落</span>${L.mark.text ? `「${esc(L.mark.text)}」` : ""}</div>
+        <button class="btn small-btn" id="lshow">本文で根拠を確かめる</button>` : ""}
+      </div>`;
+    if (!isNarrow()) showEvidence();
+    const nb = document.getElementById("lnext");
+    nb.hidden = false; nb.focus({ preventScroll: true });
+    if (isNarrow()) nb.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  function longNext() {
+    const L = lsession;
+    if (L.qi + 1 < L.p.questions.length) { L.qi++; L.mark = null; L.tab = "q"; viewLongPlay(); }
+    else longFinish();
+  }
+
+  function longFinish() {
+    const L = lsession;
+    if (!L.saved) {
+      const res = L.results;
+      log().sessions.push({ at: L.startedAt, end: Date.now(), n: res.length, ok: res.filter((r) => r.ok).length,
+        ms: L.readMs + res.reduce((s, r) => s + r.ms, 0), subj: [L.p.subject || "国語"], mode: "L", p: L.p.id,
+        title: L.p.title, read: L.readMs, chars: L.p.chars || L.p.paras.join("").length });
+      save(); L.saved = true;
+    }
+    L.done = true;
+    location.hash = "#/long/result";
+    if (location.hash === "#/long/result") viewLongResult();
+  }
+
+  const readSpeed = (chars, ms) => (ms >= 5000 ? Math.round(chars / (ms / 60000)) : null);
+
+  function viewLongResult() {
+    setNav("long");
+    const L = lsession;
+    if (!L || !L.done) { location.hash = "#/long"; return; }
+    const p = L.p, res = L.results;
+    const correct = res.filter((r) => r.ok).length;
+    const qById = Object.fromEntries(p.questions.map((q) => [q.id, q]));
+    const ansMs = res.reduce((s, r) => s + r.ms, 0);
+    const chars = p.chars || p.paras.join("").length;
+    const spd = readSpeed(chars, L.readMs);
+    const byRs = {};
+    res.forEach((r) => { byRs[r.rs] = byRs[r.rs] || { c: 0, t: 0 }; byRs[r.rs].t++; if (r.ok) byRs[r.rs].c++; });
+    const others = PASSAGES.filter((x) => x.id !== p.id && !lastLongSession(x.id));
+    const nextP = others.find((x) => x.grade === p.grade) || others[0];
+    $app.innerHTML = `
+      <h1>結果<span class="muted small" style="font-weight:400">　${esc(p.title)}</span></h1>
+      <section class="card">
+        <div class="score-hero">
+          <div class="big">${correct}<small>/${res.length}問</small></div>
+          <div class="sub">読む時間 <b>${fmtSec(L.readMs)}</b>${spd ? `（1分あたり約${spd}字）` : ""} ／ 答える時間 ${fmtSec(ansMs)}</div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>リーディングスキル別</h2>
+        ${barsHTML(byRs)}
+      </section>
+      <section class="card">
+        <div class="row" style="margin-bottom:10px"><h2 style="margin:0">ふり返り</h2><div class="spacer"></div><span class="muted small">タップで根拠を表示</span></div>
+        ${res.map((r) => {
+          const q = qById[r.id];
+          return `<details class="review-item" ${!r.ok ? "open" : ""}>
+            <summary><span class="mark ${r.ok ? "ok" : "ng"}">${r.ok ? "○" : "×"}</span>
+              <span><span class="small muted">設問${q.no || ""} ${esc(RS_MAP[q.rs_code].no)}${q.kind ? "・" + esc(q.kind) : ""}</span><br>${esc(q.question)}</span></summary>
+            <div class="review-body">
+              <div>あなたの答え：<b>${r.chosen}</b>　正答：<b>${q.answer}</b>（${esc(q.choices[LETTERS.indexOf(q.answer)])}）</div>
+              ${q.evidence_para ? `<div class="ev-quote"><span class="small muted">第${q.evidence_para}段落</span>${q.evidence ? `「${esc(q.evidence)}」` : ""}</div>` : ""}
+              <div class="muted" style="margin-top:4px"><b>根拠：</b>${esc(q.explanation)}</div>
+            </div>
+          </details>`;
+        }).join("")}
+      </section>
+      <section class="card">
+        <details><summary class="small"><b>本文をもう一度読む</b></summary><div class="lr-body" style="margin-top:10px">${passageHTML(p, null)}</div></details>
+      </section>
+      <div class="row">
+        ${nextP ? `<button class="btn primary" id="lnextp">次の文章へ（${esc(nextP.title)}）</button>` : ""}
+        <button class="btn" id="lagain">この文章をもう一度解く</button>
+        <a class="btn ghost" href="#/long">文章の一覧</a>
+      </div>`;
+    $app.onclick = (e) => {
+      if (e.target.closest("#lagain")) startLong(p);
+      else if (e.target.closest("#lnextp")) startLong(nextP);
+    };
+  }
+
   /* =========================================================
      画面4: ダッシュボード（期間ごとの学習履歴）
      ========================================================= */
-  const dash = { preset: "30", from: null, to: null, gran: "auto" };
+  const dash = { preset: "30", from: null, to: null, gran: "auto", mode: "all" };
+  const MODES = [["all", "すべて"], ["S", "短文の演習"], ["L", "長文読解"]];
+  const modeOk = (m) => dash.mode === "all" || (dash.mode === "L" ? m === "L" : m !== "L");
   const PRESETS = [["7", "7日間"], ["30", "30日間"], ["90", "90日間"], ["month", "今月"], ["lastmonth", "先月"], ["all", "全期間"], ["custom", "期間指定"]];
 
   function periodRange() {
@@ -450,7 +719,7 @@
 
   function viewDashboard() {
     setNav("dashboard");
-    const all = log().answers;
+    const all = log().answers.filter((a) => modeOk(a.m));
     const r = periodRange();
     const gran = granularity(r.days);
     const cur = all.filter((a) => a.t >= +r.from && a.t < +r.to);
@@ -459,7 +728,11 @@
     const buckets = makeBuckets(r.from, r.to, gran);
     let bi = 0;
     cur.forEach((a) => { while (bi < buckets.length && a.t >= buckets[bi].end) bi++; if (buckets[bi] && a.t >= buckets[bi].start) { buckets[bi].n++; buckets[bi].c += a.ok; } });
-    const sessions = log().sessions.filter((s) => s.at >= +r.from && s.at < +r.to).slice().reverse();
+    const sessions = log().sessions.filter((s) => s.at >= +r.from && s.at < +r.to && modeOk(s.mode)).slice().reverse();
+    const longS = sessions.filter((s) => s.mode === "L");
+    const longChars = longS.reduce((t, s) => t + (s.chars || 0), 0), longRead = longS.reduce((t, s) => t + (s.read || 0), 0);
+    const longN = longS.reduce((t, s) => t + s.n, 0), longOk = longS.reduce((t, s) => t + s.ok, 0);
+    const longSpd = longRead >= 5000 ? Math.round(longChars / (longRead / 60000)) : null;
     const rangeLabel = `${r.from.getFullYear()}/${md(r.from)} 〜 ${md(addDays(r.to, -1))}`;
     const granLabel = { day: "日", week: "週", month: "月" }[gran];
 
@@ -485,12 +758,16 @@
           <input type="date" id="dfrom" value="${dash.from || ymd(r.from)}"> <span>〜</span>
           <input type="date" id="dto" value="${dash.to || ymd(addDays(r.to, -1))}">
         </div>` : ""}
+        ${PASSAGES.length ? `<div class="row gran-row"><span class="small muted">対象</span>
+          ${MODES.map(([k, l]) => `<button class="chip sm" data-mode="${k}" aria-pressed="${dash.mode === k}">${l}</button>`).join("")}
+        </div>` : ""}
         <div class="row gran-row"><span class="small muted">集計の単位</span>
           ${[["auto", "自動"], ["day", "日"], ["week", "週"], ["month", "月"]].map(([k, l]) => `<button class="chip sm" data-gran="${k}" aria-pressed="${dash.gran === k}">${l}</button>`).join("")}
         </div>
       </div>
 
-      ${all.length === 0 ? `
+      ${all.length === 0 && dash.mode !== "all" ? `
+      <section class="card"><div class="empty">「${MODES.find((x) => x[0] === dash.mode)[1]}」の記録はまだありません。<br><a href="${dash.mode === "L" ? "#/long" : "#/"}">${dash.mode === "L" ? "長文読解をはじめる" : "演習をはじめる"}</a></div></section>` : all.length === 0 ? `
       <section class="card"><div class="empty">
         まだ学習記録がありません。<br><a href="#/">演習をはじめる</a>
         <div style="margin-top:14px"><button class="btn" id="sample">画面確認用のサンプル記録を作る</button>
@@ -503,6 +780,16 @@
         ${kpi("学習した日数", `${A.days}<small>日</small>`, `連続 ${streak()}日（今日まで）`)}
         ${kpi("1問あたりの時間", A.n ? fmtSec(A.ms / A.n) : "—", A.n && P.n ? `前の期間 ${fmtSec(P.ms / P.n)}` : "")}
       </section>
+
+      ${longS.length ? `<section class="card">
+        <h2>長文読解<span class="muted small">（この期間）</span></h2>
+        <div class="kpis kpis-in">
+          ${kpi("読んだ文章", `${longS.length}<small>回</small>`, `${new Set(longS.map((s) => s.p)).size}種類の文章`)}
+          ${kpi("正答率", `${pct(longOk, longN)}<small>%</small>`, `${longOk}/${longN}問`)}
+          ${kpi("1回の読む時間", fmtSec(longRead / longS.length), "本文を読み終えるまで")}
+          ${kpi("読む速さ", longSpd ? `${longSpd}<small>字/分</small>` : "—", "読む時間から計算")}
+        </div>
+      </section>` : ""}
 
       <section class="card">
         <h2>解答数の推移<span class="muted small">（${granLabel}ごと）</span></h2>
@@ -538,7 +825,7 @@
         <h2>演習の記録<span class="muted small">（${sessions.length}回）</span></h2>
         ${sessions.length ? `<div class="scroll"><table class="sess-table">
           <thead><tr><th>日時</th><th>教科</th><th class="num">正解</th><th class="num">正答率</th><th class="num opt">時間</th></tr></thead>
-          <tbody>${sessions.slice(0, 100).map((s, i) => `<tr ${i >= 10 ? 'class="more" hidden' : ""}><td class="nw">${fmtDateTime(s.at)}</td><td class="subj">${esc(s.subj.join("・"))}</td><td class="num">${s.ok}/${s.n}</td><td class="num">${pct(s.ok, s.n)}%</td><td class="num opt">${fmtSec(s.ms || 0)}</td></tr>`).join("")}</tbody>
+          <tbody>${sessions.slice(0, 100).map((s, i) => `<tr ${i >= 10 ? 'class="more" hidden' : ""}><td class="nw">${fmtDateTime(s.at)}</td><td class="subj">${s.mode === "L" ? `長文「${esc(s.title || "")}」` : esc(s.subj.join("・"))}</td><td class="num">${s.ok}/${s.n}</td><td class="num">${pct(s.ok, s.n)}%</td><td class="num opt">${fmtSec(s.ms || 0)}</td></tr>`).join("")}</tbody>
         </table></div>${sessions.length > 10 ? `<button class="btn ghost small-btn" id="more">すべて表示（${Math.min(100, sessions.length)}回）</button>` : ""}` : `<div class="empty">この期間の演習はありません</div>`}
       </section>`}
 
@@ -577,7 +864,9 @@
       if (!b) return;
       if (b.dataset.preset) { dash.preset = b.dataset.preset; return viewDashboard(); }
       if (b.dataset.gran) { dash.gran = b.dataset.gran; return viewDashboard(); }
+      if (b.dataset.mode) { dash.mode = b.dataset.mode; return viewDashboard(); }
       if (b.dataset.practice) {
+        if (dash.mode === "L") { location.hash = "#/long"; return; }
         const [s, rs] = b.dataset.practice.split("|");
         const setup = { subjects: new Set([s]), grades: new Set(GRADES), rs: new Set([rs]), count: 10, onlyWrong: false };
         lastSetup = setup; return startFromSetup(setup);
@@ -586,8 +875,8 @@
       if (b.id === "sample") { makeSample(); return viewDashboard(); }
       if (b.id === "lrename") return showLearnerForm("rename");
       if (b.id === "exp-csv") {
-        const rows = [["学習者", "日時", "問題ID", "教科", "学年", "RSコード", "RS項目", "正誤", "選んだ答え", "解答時間(秒)"]];
-        log().answers.forEach((a) => { const d = new Date(a.t); rows.push([learner().name, `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`, a.q, a.s, a.g, a.rs, RS_MAP[a.rs] ? RS_MAP[a.rs].name : "", a.ok ? "正解" : "不正解", a.c, Math.round((a.ms || 0) / 100) / 10]); });
+        const rows = [["学習者", "日時", "問題ID", "教科", "学年", "RSコード", "RS項目", "正誤", "選んだ答え", "解答時間(秒)", "モード", "文章ID"]];
+        log().answers.forEach((a) => { const d = new Date(a.t); rows.push([learner().name, `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`, a.q, a.s, a.g, a.rs, RS_MAP[a.rs] ? RS_MAP[a.rs].name : "", a.ok ? "正解" : "不正解", a.c, Math.round((a.ms || 0) / 100) / 10, a.m === "L" ? "長文" : "短文", a.p || ""]); });
         const csv = "﻿" + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
         return msg(download(`RST記録_${learner().name}_${ymd(new Date())}.csv`, csv, "text/csv") ? "CSVを書き出しました。" : "この環境では書き出しができません。");
       }
@@ -806,6 +1095,14 @@
 
   /* ---------- キーボード操作 ---------- */
   document.addEventListener("keydown", (e) => {
+    if (location.hash === "#/long/play" && lsession && lsession.phase === "q" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+      const k = e.key.toUpperCase();
+      const idx = ["1", "2", "3", "4"].indexOf(k) >= 0 ? Number(k) - 1 : LETTERS.indexOf(k);
+      if (!lsession.answered && idx >= 0) { e.preventDefault(); longAnswer(idx); }
+      else if (lsession.answered && e.key === "Enter") { e.preventDefault(); longNext(); }
+      return;
+    }
     if (location.hash !== "#/quiz" || !session || session.done || e.metaKey || e.ctrlKey || e.altKey) return;
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
     const k = e.key.toUpperCase();
@@ -818,17 +1115,27 @@
   function route() {
     const h = location.hash || "#/";
     $app.onclick = null;
+    document.body.dataset.view = h.replace(/[^a-z]/g, "") || "home";
+    const tb = document.querySelector(".topbar");
+    if (tb) document.documentElement.style.setProperty("--topbar-h", tb.offsetHeight + "px");
     if (h === "#/quiz") viewQuiz();
     else if (h === "#/result") viewResult();
     else if (h === "#/dashboard" || h === "#/history") viewDashboard();
     else if (h === "#/browse") viewBrowse();
+    else if (h === "#/long") viewLongList();
+    else if (h === "#/long/play") viewLongPlay();
+    else if (h === "#/long/result") viewLongResult();
     else viewHome();
   }
 
-  loadData().then(({ items, info }) => {
+  loadData().then(({ items, passages, info }) => {
     DB = items.filter((q) => Array.isArray(q.choices) && q.choices.length === 4 && RS_MAP[q.rs_code]);
     Q_BY_ID = Object.fromEntries(DB.map((q) => [q.id, q]));
-    document.getElementById("data-info").textContent = `登録問題数 ${DB.length}問｜${info}`;
+    PASSAGES = (passages || []).map((p) => ({ ...p, questions: (p.questions || []).filter((q) => Array.isArray(q.choices) && q.choices.length === 4 && RS_MAP[q.rs_code]) }))
+      .filter((p) => p.questions.length && Array.isArray(p.paras) && p.paras.length);
+    const longQ = PASSAGES.reduce((s, p) => s + p.questions.length, 0);
+    document.getElementById("data-info").textContent = `登録問題数 ${DB.length}問${PASSAGES.length ? `・長文 ${PASSAGES.length}文章（${longQ}問）` : ""}｜${info}`;
+    document.querySelectorAll('[data-nav="long"]').forEach((a) => { a.hidden = !PASSAGES.length; });
     window.addEventListener("hashchange", route);
     route();
   }).catch((err) => {
